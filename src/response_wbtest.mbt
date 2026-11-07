@@ -85,10 +85,11 @@ test "text decodes UTF-8 leniently" {
 }
 
 ///|
+#derive(Eq, Debug, FromJson)
 priv struct Point {
   x : Int32
   y : Int32
-} derive(Eq, Debug, FromJson)
+}
 
 ///|
 test "json and json_as decode the body or raise Decoding" {

@@ -26,10 +26,11 @@ one into an error.
 
 ```mbt check
 ///|
+#derive(FromJson)
 struct User {
   id : Int32
   name : String
-} derive(FromJson)
+}
 
 ///|
 pub async fn example() -> Unit {
