@@ -242,6 +242,10 @@ test "userinfo splits at the first colon and is percent-decoded" {
     ("%E3%81%82:%F0%9F%94%91", ("あ", "🔑")),
     ("100%:%zz%4", ("100%", "%zz%4")),
     ("%ff:x", ("\u{fffd}", "x")),
+    ("%E3:x", ("\u{fffd}", "x")),
+    ("u%E3%81:%E3%81%82%E3", ("u\u{fffd}", "あ\u{fffd}")),
+    ("u%2:p%2", ("u%2", "p%2")),
+    ("%E3%2:%2%41", ("\u{fffd}%2", "%2A")),
   ]
   for case in cases {
     assert_eq(split_userinfo(case.0), case.1, msg=case.0)

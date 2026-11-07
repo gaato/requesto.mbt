@@ -14,6 +14,10 @@ never does. Every breaking change is listed with a migration note.
   its examples are type-checked with the tests, and every public declaration
   has a doc comment. The package no longer ships the repository's notes,
   ledgers and scripts.
+- The userinfo of a URL is percent-decoded by core's
+  `@percent.decode_lossy` instead of a private decoder. The result is the
+  same: a `%` not followed by two hex digits is kept, and escaped bytes that
+  are not UTF-8 become U+FFFD.
 
 ## [0.2.2] - 2026-10-22
 

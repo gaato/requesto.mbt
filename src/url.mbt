@@ -128,47 +128,16 @@ fn without_userinfo(url : String, userinfo : String?) -> String {
 ///|
 /// The username and password of a URL's userinfo, percent-decoded: the
 /// part before the first `:` and the rest, empty when there is no `:`.
+/// Decoding is lossy: a `%` not followed by two hex digits is kept, and
+/// escaped bytes that are not UTF-8 become U+FFFD.
 fn split_userinfo(userinfo : String) -> (String, String) {
   match userinfo.find(":") {
     Some(i) =>
       (
-        percent_decode(userinfo[:i].to_owned()),
-        percent_decode(userinfo[i + 1:].to_owned()),
+        @percent.decode_lossy(userinfo[:i]),
+        @percent.decode_lossy(userinfo[i + 1:]),
       )
-    None => (percent_decode(userinfo), "")
-  }
-}
-
-///|
-/// `text` with each `%XX` escape replaced by its byte, read as UTF-8 with
-/// U+FFFD for malformed bytes. A `%` not followed by two hex digits is kept.
-fn percent_decode(text : String) -> String {
-  guard text.contains("%") else { return text }
-  let bytes = @utf8.encode(text)
-  let out = Buffer()
-  let mut i = 0
-  while i < bytes.length() {
-    if bytes[i] == b'%' &&
-      i + 2 < bytes.length() &&
-      hex_value(bytes[i + 1]) is Some(high) &&
-      hex_value(bytes[i + 2]) is Some(low) {
-      out.write_byte((high * 16 + low).to_byte())
-      i += 3
-    } else {
-      out.write_byte(bytes[i])
-      i += 1
-    }
-  }
-  @utf8.decode_lossy(out.to_bytes())
-}
-
-///|
-fn hex_value(byte : Byte) -> Int32? {
-  match byte {
-    b'0'..<=b'9' => Some(byte.to_int() - b'0'.to_int())
-    b'a'..<=b'f' => Some(byte.to_int() - b'a'.to_int() + 10)
-    b'A'..<=b'F' => Some(byte.to_int() - b'A'.to_int() + 10)
-    _ => None
+    None => (@percent.decode_lossy(userinfo), "")
   }
 }
 
