@@ -9,6 +9,7 @@ target/
 .github/
 scripts/
 RESOURCE_BOUNDS.md
+MIGRATION.md
 TEST_COVERAGE.md
 AGENTS.md
 renovate.json

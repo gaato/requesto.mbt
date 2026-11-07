@@ -7,6 +7,15 @@ never does. Every breaking change is listed with a migration note.
 
 ## [Unreleased]
 
+### Deprecated
+
+- The requesto facade is being retired in favor of mttp and mttp-net. This
+  change adds a feature-by-feature migration guide and leaves the current
+  runtime and dependency versions unchanged. The replacement's local
+  integration is not a registry release; migration requires the unpublished
+  workspace until that release is approved. Digest authentication lives in
+  the separate mttp-digest module.
+
 ### Changed
 
 - **The README has sections and a compile-checked example.** It now has
