@@ -7,6 +7,15 @@ never does. Every breaking change is listed with a migration note.
 
 ## [Unreleased]
 
+### Deprecated
+
+- **requesto is no longer developed.** Its replacement is
+  [mttp](https://github.com/gaato/mttp): `gaato/mttp`'s client over
+  `gaato/http-async`, on `moonbitlang/core/async`. The new
+  [migration guide](https://github.com/gaato/requesto.mbt/blob/main/MIGRATION.md)
+  maps each feature and lists the defaults that differ. No API changes in
+  this release.
+
 ### Changed
 
 - **The README has sections and a compile-checked example.** It now has

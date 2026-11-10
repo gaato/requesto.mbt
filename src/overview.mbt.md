@@ -12,6 +12,13 @@ The name is "request" as Japanese speakers tend to say it: リクエスト,
 > [changelog](https://github.com/gaato/requesto.mbt/blob/main/CHANGELOG.md)
 > lists each one with a migration note.
 
+> **Deprecated:** requesto is no longer developed. Use
+> [mttp](https://github.com/gaato/mttp) (`gaato/mttp` with
+> `gaato/http-async`) instead; the
+> [migration guide](https://github.com/gaato/requesto.mbt/blob/main/MIGRATION.md)
+> maps each requesto feature to its replacement and lists the defaults that
+> differ. Existing requesto releases keep working.
+
 ## Install
 
 ```sh
