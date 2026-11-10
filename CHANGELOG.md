@@ -7,6 +7,8 @@ never does. Every breaking change is listed with a migration note.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-10
+
 ### Deprecated
 
 - **requesto is no longer developed.** Its replacement is

@@ -2,7 +2,7 @@
 test "defaults: 30 s per exchange, 64 MiB per buffered body, a versioned User-Agent" {
   assert_eq(default_timeout, 30_000)
   assert_eq(default_max_body_bytes, 64 * 1024 * 1024)
-  assert_eq(user_agent, "requesto/0.2.2")
+  assert_eq(user_agent, "requesto/0.2.3")
   let client = Client::new()
   assert_eq(client.timeout, 30_000)
   assert_true(client.total_timeout is None, msg="derived per call")

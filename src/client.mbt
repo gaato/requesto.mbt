@@ -1,6 +1,6 @@
 ///|
 /// The `User-Agent` a client sends unless told otherwise.
-let user_agent : String = "requesto/0.2.2"
+let user_agent : String = "requesto/0.2.3"
 
 ///|
 /// How long one exchange may take, in milliseconds, unless told otherwise.

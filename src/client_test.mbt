@@ -33,7 +33,7 @@ async test "a call merges the client's defaults with its own arguments" {
     "https://api.test/v1/users/42?fields=id&key=k&lang=ja&expand=teams",
   )
   assert_eq(request.headers.iter().collect(), [
-    ("user-agent", "requesto/0.2.2"),
+    ("user-agent", "requesto/0.2.3"),
     ("accept", "application/json"),
     ("x-team", "b"),
     ("x-extra", "1"),
