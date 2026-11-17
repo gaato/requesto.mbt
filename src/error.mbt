@@ -1,250 +1,176 @@
 ///|
-/// Why a call failed. Transport failures carry the request being sent;
-/// `Status` carries the response that `raise_for_status` refused.
-pub(all) suberror RequestoError {
-  /// A time limit of `timeout` milliseconds ran out during `phase`: one of
-  /// the transport's per-phase limits, or `Unknown` for the call's
-  /// `timeout`, which spans the phases.
-  Timeout(request~ : Request, phase~ : Phase, timeout~ : Int32)
-  /// The call's `total_timeout` of `timeout` milliseconds ran out, across
-  /// its redirects, retries and the waits between them; `request` is the
-  /// call's first request. It is never retried.
-  TotalTimeout(request~ : Request, timeout~ : Int32)
-  /// The connection could not be made (`Dial`) or failed after it was made,
-  /// in `phase`.
-  Network(request~ : Request, phase~ : Phase, message~ : String)
-  /// The peer broke HTTP, or the response passed a limit such as
-  /// `max_body_bytes`.
-  Protocol(request~ : Request, message~ : String)
-  /// The proxy refused to open a tunnel with `status`: 407 when it wants
-  /// credentials, 403 when it refuses the destination, 502 or 504 when it
-  /// could not reach it. Nothing reached the origin.
-  Proxy(request~ : Request, status~ : Int32, message~ : String)
-  /// More than `max` redirects in a row; `request` is the last one sent,
-  /// whose response was the redirect past `max`.
-  TooManyRedirects(request~ : Request, max~ : Int32)
-  /// A redirect that is not followed: a `Location` that is not a usable
-  /// URL, an `https` to `http` downgrade, or a stream body that cannot be
-  /// sent again.
-  InvalidRedirect(request~ : Request, location~ : String, message~ : String)
-  /// The body of a streamed response was asked for before `read` read it.
-  ResponseNotRead(request~ : Request)
-  /// The body of a streamed response was read without `read`, or closed,
-  /// so it is gone.
-  StreamConsumed(request~ : Request)
-  /// The URL's scheme is not `http` or `https`.
-  UnsupportedProtocol(url~ : String)
-  /// The URL is not an absolute HTTP URL.
-  InvalidURL(url~ : String, message~ : String)
-  /// The call's arguments conflict or cannot be encoded.
-  InvalidRequest(message~ : String)
-  /// A response body is not the JSON, or the type, it was read as.
-  Decoding(message~ : String)
-  /// The response status is not in 200 through 299.
-  Status(request~ : Request, response~ : Response)
+/// One suberror for every failure. The variants are httpx2's exception
+/// classes that can occur here, and the predicates stand in for its class
+/// tree. Transport variants keep the `@mttp.TransportError` they came from.
+pub(all) suberror HTTPError {
+  /// Connecting took longer than `Timeout.connect`.
+  ConnectTimeout(@mttp.TransportError)
+  /// The response's head or the next bytes of its body took longer than
+  /// `Timeout.read`.
+  ReadTimeout(@mttp.TransportError)
+  /// Writing the request took longer than `Timeout.write`.
+  WriteTimeout(@mttp.TransportError)
+  /// Waiting for a free connection took longer than `Timeout.pool`.
+  PoolTimeout(@mttp.TransportError)
+  /// The whole-call deadline (`total_timeout`) ran out.
+  TotalTimeout(@mttp.TransportError)
+  /// The connection could not be made, or broke before the request was sent.
+  ConnectError(@mttp.TransportError)
+  /// The connection broke while the response was read.
+  ReadError(@mttp.TransportError)
+  /// The connection broke while the request was written.
+  WriteError(@mttp.TransportError)
+  /// The peer broke HTTP (httpx2's `RemoteProtocolError`).
+  ProtocolError(@mttp.TransportError)
+  /// A proxy refused the tunnel with `status`.
+  ProxyError(@mttp.TransportError, status~ : Int32)
+  /// More redirects than `max_redirects`.
+  TooManyRedirects(@mttp.TransportError)
+  /// A redirect from https to http, which mttp refuses; httpx2 follows it.
+  RedirectRefused(@mttp.TransportError)
+  /// The body passed `max_body_bytes`, or a line or event passed its limit;
+  /// httpx2 has no such limits.
+  TooLarge(@mttp.TransportError, limit~ : Int32)
+  /// The request could not be sent as built: a bad URL, a header value mttp
+  /// refuses, or a multipart body that cannot be encoded (httpx2's
+  /// `InvalidURL` and `LocalProtocolError`).
+  InvalidRequest(@mttp.TransportError)
+  /// A streamed request body cannot be sent again for a redirect or a retry
+  /// (httpx2's `StreamConsumed`).
+  StreamClosed(@mttp.TransportError)
+  /// A failure from mttp that no other variant names: a transport failure
+  /// of a newer kind, or a refusal from mttp's client (a spent retry budget,
+  /// say), whose message is then the detail of an `Unknown`-phase error.
+  TransportError(@mttp.TransportError)
+  /// `raise_for_status` on a status outside 200..=299.
+  HTTPStatusError(Response)
+  /// The body is not what the caller asked to decode it as.
+  DecodingError(String)
 }
 
 ///|
-/// Debug output names the request by method and URL and the response by
-/// status, so headers such as `Authorization` never appear in it, and
-/// credentials in a URL are redacted.
-pub extend RequestoError with @debug.Debug::{to_repr}
-
-///|
-/// Shows the variant and its fields, each request as its method and redacted
-/// URL.
-pub impl @debug.Debug for RequestoError with fn to_repr(self) {
-  let request = (request : Request) => {
-    @debug.Repr::literal(request.http_method + " " + redact_url(request.url))
-  }
-  let string = (value : String) => @debug.Repr::Repr(value)
+/// The variant's mttp diagnostic, or the status and URL.
+pub impl Show for HTTPError with fn output(self, logger) {
   match self {
-    Timeout(request=r, phase~, timeout~) =>
-      @debug.Repr::ctor("Timeout", [
-        (Some("request"), request(r)),
-        (Some("phase"), @debug.Repr::Repr(phase)),
-        (Some("timeout"), @debug.Repr::Repr(timeout)),
-      ])
-    TotalTimeout(request=r, timeout~) =>
-      @debug.Repr::ctor("TotalTimeout", [
-        (Some("request"), request(r)),
-        (Some("timeout"), @debug.Repr::Repr(timeout)),
-      ])
-    Network(request=r, phase~, message~) =>
-      @debug.Repr::ctor("Network", [
-        (Some("request"), request(r)),
-        (Some("phase"), @debug.Repr::Repr(phase)),
-        (Some("message"), string(message)),
-      ])
-    Protocol(request=r, message~) =>
-      @debug.Repr::ctor("Protocol", [
-        (Some("request"), request(r)),
-        (Some("message"), string(message)),
-      ])
-    Proxy(request=r, status~, message~) =>
-      @debug.Repr::ctor("Proxy", [
-        (Some("request"), request(r)),
-        (Some("status"), @debug.Repr::Repr(status)),
-        (Some("message"), string(message)),
-      ])
-    TooManyRedirects(request=r, max~) =>
-      @debug.Repr::ctor("TooManyRedirects", [
-        (Some("request"), request(r)),
-        (Some("max"), @debug.Repr::Repr(max)),
-      ])
-    InvalidRedirect(request=r, location~, message~) =>
-      @debug.Repr::ctor("InvalidRedirect", [
-        (Some("request"), request(r)),
-        (Some("location"), string(redact_url(location))),
-        (Some("message"), string(message)),
-      ])
-    ResponseNotRead(request=r) =>
-      @debug.Repr::ctor("ResponseNotRead", [(Some("request"), request(r))])
-    StreamConsumed(request=r) =>
-      @debug.Repr::ctor("StreamConsumed", [(Some("request"), request(r))])
-    UnsupportedProtocol(url~) =>
-      @debug.Repr::ctor("UnsupportedProtocol", [
-        (Some("url"), string(redact_url(url))),
-      ])
-    InvalidURL(url~, message~) =>
-      @debug.Repr::ctor("InvalidURL", [
-        (Some("url"), string(redact_url(url))),
-        (Some("message"), string(message)),
-      ])
-    InvalidRequest(message~) =>
-      @debug.Repr::ctor("InvalidRequest", [(Some("message"), string(message))])
-    Decoding(message~) =>
-      @debug.Repr::ctor("Decoding", [(Some("message"), string(message))])
-    Status(request=r, response~) =>
-      @debug.Repr::ctor("Status", [
-        (Some("request"), request(r)),
-        (Some("status"), @debug.Repr::Repr(response.status)),
-      ])
+    HTTPStatusError(r) =>
+      logger.write_string("HTTPStatusError: \{r.status_code} for \{r.url}")
+    DecodingError(m) => logger.write_string("DecodingError: \{m}")
+    _ =>
+      match self.mttp() {
+        Some(e) => logger.write_string(e.message())
+        None => logger.write_string("HTTPError")
+      }
   }
 }
 
 ///|
-/// The error's one-line message.
-pub extend RequestoError with Show::{to_string, output}
+/// `to_string` and `output` as methods of `HTTPError`.
+pub extend HTTPError with Show::{to_string, output}
 
 ///|
-/// A one-line message naming the request by method and URL, without headers
-/// or bodies.
-pub impl Show for RequestoError with fn output(self, logger) {
-  let target = (request : Request) => {
-    request.http_method + " " + redact_url(request.url)
-  }
-  let message = match self {
-    Timeout(request~, phase~, timeout~) =>
-      "\{target(request)}: timed out after \{timeout} ms\{phase_suffix(phase)}"
-    TotalTimeout(request~, timeout~) =>
-      "\{target(request)}: the call did not finish within \{timeout} ms"
-    Network(request~, phase~, message~) =>
-      "\{target(request)}: network error\{phase_suffix(phase)}: \{message}"
-    Protocol(request~, message~) =>
-      "\{target(request)}: protocol error: \{message}"
-    Proxy(request~, status~, message~) =>
-      "\{target(request)}: the proxy refused the tunnel with \{status}: \{message}"
-    TooManyRedirects(request~, max~) =>
-      "\{target(request)}: more than \{max} redirects"
-    InvalidRedirect(request~, location~, message~) =>
-      "\{target(request)}: redirect to \{redact_url(location)} not followed: \{message}"
-    ResponseNotRead(request~) =>
-      "\{target(request)}: the streamed body has not been read"
-    StreamConsumed(request~) =>
-      "\{target(request)}: the streamed body was consumed or closed"
-    UnsupportedProtocol(url~) =>
-      "unsupported protocol in URL: \{redact_url(url)}"
-    InvalidURL(url~, message~) => "invalid URL \{redact_url(url)}: \{message}"
-    InvalidRequest(message~) => "invalid request: \{message}"
-    Decoding(message~) => "cannot decode the response body: \{message}"
-    Status(request~, response~) =>
-      "\{status_class(response.status)} \{response.status} for \{target(request)}"
-  }
-  logger.write_string(message)
-}
-
-///|
-/// Whether a time limit ran out: `Timeout` or `TotalTimeout`.
-pub fn RequestoError::is_timeout(self : RequestoError) -> Bool {
-  self is (Timeout(..) | TotalTimeout(..))
-}
-
-///|
-/// Whether sending failed below HTTP: `Timeout`, `Network`, `Protocol`,
-/// `Proxy` or `UnsupportedProtocol`.
-pub fn RequestoError::is_transport_error(self : RequestoError) -> Bool {
+/// The mttp error a transport variant came from.
+pub fn HTTPError::mttp(self : HTTPError) -> @mttp.TransportError? {
   match self {
-    Timeout(..)
-    | Network(..)
-    | Protocol(..)
-    | Proxy(..)
-    | UnsupportedProtocol(..) => true
-    TotalTimeout(..)
-    | TooManyRedirects(..)
-    | InvalidRedirect(..)
-    | ResponseNotRead(..)
-    | StreamConsumed(..)
-    | InvalidURL(..)
-    | InvalidRequest(..)
-    | Decoding(..)
-    | Status(..) => false
+    ConnectTimeout(e)
+    | ReadTimeout(e)
+    | WriteTimeout(e)
+    | PoolTimeout(e)
+    | TotalTimeout(e)
+    | ConnectError(e)
+    | ReadError(e)
+    | WriteError(e)
+    | ProtocolError(e)
+    | ProxyError(e, ..)
+    | TooManyRedirects(e)
+    | RedirectRefused(e)
+    | TooLarge(e, ..)
+    | InvalidRequest(e)
+    | StreamClosed(e)
+    | TransportError(e) => Some(e)
+    HTTPStatusError(_) | DecodingError(_) => None
   }
 }
 
 ///|
-/// Whether the request certainly never reached the server, so sending it
-/// again cannot repeat its effect: the transport failed while waiting for a
-/// connection or making one, or the proxy refused the tunnel. A request
-/// refused before the transport, such as `InvalidURL`, is not counted: it
-/// would fail the same way again.
-pub fn RequestoError::is_unsent(self : RequestoError) -> Bool {
-  match self {
-    Timeout(phase~, ..) | Network(phase~, ..) => phase is (Pool | Dial)
-    Proxy(..) => true
-    _ => false
+/// Whether a time limit ran out: a phase timeout or `total_timeout`.
+pub fn HTTPError::is_timeout(self : HTTPError) -> Bool {
+  self
+  is (ConnectTimeout(_)
+  | ReadTimeout(_)
+  | WriteTimeout(_)
+  | PoolTimeout(_)
+  | TotalTimeout(_))
+}
+
+///|
+/// httpx2's `NetworkError` branch: the connection could not be made or broke.
+pub fn HTTPError::is_network_error(self : HTTPError) -> Bool {
+  self is (ConnectError(_) | ReadError(_) | WriteError(_))
+}
+
+///|
+/// httpx2's `TransportError` branch: anything that went wrong on the wire.
+pub fn HTTPError::is_transport_error(self : HTTPError) -> Bool {
+  self.mttp() is Some(_)
+}
+
+///|
+/// httpx2's `RequestError` branch: every failure except `HTTPStatusError`.
+pub fn HTTPError::is_request_error(self : HTTPError) -> Bool {
+  !(self is HTTPStatusError(_))
+}
+
+///|
+/// The variant httpx2 would raise for an mttp transport failure.
+fn from_mttp(e : @mttp.TransportError) -> HTTPError {
+  let @mttp_core.TransportError(kind~, phase~, ..) = e
+  match (kind, phase) {
+    (Timeout(..), Pool) => PoolTimeout(e)
+    (Timeout(..), Dial) => ConnectTimeout(e)
+    (Timeout(..), Write) => WriteTimeout(e)
+    (Timeout(..), Head | Body) => ReadTimeout(e)
+    (Timeout(..), _) => TotalTimeout(e)
+    (Connect, _) => ConnectError(e)
+    (Network | Closed | IncompleteClose | Refused, Pool | Dial) =>
+      ConnectError(e)
+    (Network | Closed | IncompleteClose | Refused, Write) => WriteError(e)
+    (Network | Closed | IncompleteClose | Refused, _) => ReadError(e)
+    (Protocol, _) => ProtocolError(e)
+    (Proxy(status~), _) => ProxyError(e, status~)
+    (TooLarge(limit~), _) => TooLarge(e, limit~)
+    (TooManyRedirects(..), _) => TooManyRedirects(e)
+    (RedirectRefused, _) => RedirectRefused(e)
+    (Invalid, _) => InvalidRequest(e)
+    (Unreplayable, _) => StreamClosed(e)
+    _ => TransportError(e)
   }
 }
 
 ///|
-/// Maps a failure of the transport for `request`. The transport raises
-/// only `@http.HttpError`; anything else is reported as `Protocol`.
-fn map_transport_error(error : Error, request : Request) -> RequestoError {
-  match error {
-    @http.HttpError::Connect(message) => Network(request~, phase=Dial, message~)
-    @http.HttpError::Timeout(phase~, ms~) =>
-      Timeout(request~, phase~, timeout=ms)
-    @http.HttpError::Network(phase~, message~) =>
-      Network(request~, phase~, message~)
-    @http.HttpError::Protocol(message) => Protocol(request~, message~)
-    @http.HttpError::Proxy(status~, message~) =>
-      Proxy(request~, status~, message~)
-    error => Protocol(request~, message=error.to_string())
+/// An mttp error for a failure requesto finds itself.
+fn local_error(
+  kind : @mttp_core.Kind,
+  phase : @mttp_core.Phase,
+  detail : String,
+) -> @mttp.TransportError {
+  @mttp_core.TransportError(kind~, phase~, detail~)
+}
+
+///|
+/// Runs an mttp call, turning its transport failures into `HTTPError`.
+async fn[T] lift(f : async () -> T) -> T raise HTTPError {
+  f() catch {
+    @mttp_core.TransportError(..) as e => raise from_mttp(e)
+    e => raise TransportError(local_error(Network, Unknown, e.to_string()))
   }
 }
 
 ///|
-/// How a message names the phase it failed in; nothing for `Unknown` or a
-/// phase this version does not know.
-fn phase_suffix(phase : Phase) -> String {
-  match phase {
-    Pool => " waiting for a connection"
-    Dial => " connecting"
-    Write => " sending the request"
-    Head => " waiting for the response"
-    Body => " reading the body"
-    Unknown | @http.Phase::.. => ""
-  }
-}
-
-///|
-/// How the message of a `Status` error names its status.
-fn status_class(status : Int32) -> String {
-  match status / 100 {
-    1 => "informational response"
-    3 => "redirect response"
-    4 => "client error"
-    5 => "server error"
-    _ => "unexpected status"
+/// As `lift`, but errors other than mttp's pass through unchanged, for calls
+/// that run the caller's own code.
+async fn[T] lift_any(f : async () -> T) -> T {
+  f() catch {
+    @mttp_core.TransportError(..) as e => raise from_mttp(e)
+    e => raise e
   }
 }

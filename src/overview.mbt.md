@@ -1,8 +1,10 @@
 # gaato/requesto
 
-An async HTTP client for MoonBit: verb functions, a client with defaults, body
-encoders, and responses as values. It runs on the native, JavaScript and
-moonrun Wasm backends.
+HTTP calls for MoonBit written the way httpx2 (and requests) users write
+them: verb functions, a client with defaults, responses as values,
+`raise_for_status()`, streaming in a scope, event hooks and a mock transport.
+Underneath it is [gaato/mttp](https://mooncakes.io/docs/gaato/mttp), which
+does the HTTP; requesto only adds the surface and its defaults.
 
 The name is "request" as Japanese speakers tend to say it: リクエスト,
 *rikuesuto*.
@@ -12,157 +14,169 @@ The name is "request" as Japanese speakers tend to say it: リクエスト,
 > [changelog](https://github.com/gaato/requesto.mbt/blob/main/CHANGELOG.md)
 > lists each one with a migration note.
 
-> **Deprecated:** requesto is no longer developed. Applications should use
-> [`gaato/mttp`](https://mooncakes.io/docs/gaato/mttp) and libraries
-> [`gaato/mttp_core`](https://mooncakes.io/docs/gaato/mttp_core) (the
-> [mttp](https://github.com/gaato/mttp) project); the
-> [migration guide](https://github.com/gaato/requesto.mbt/blob/main/MIGRATION.md)
-> maps each requesto feature to its replacement and lists the defaults that
-> differ. Existing requesto releases keep working.
-
 ## Install
 
 ```sh
 moon add gaato/requesto
 ```
 
-## Usage
+requesto runs on `moonbitlang/core/async`, which is experimental: a package
+that imports it needs
+`options("allow-experimental-packages": ["moonbitlang/core/async"])` in its
+`moon.pkg`. Start the event loop with `@mttp.run` or an `async fn main`.
 
-Make a client with the defaults every call shares, then call verbs on it. A
-response is a value whatever its status; `raise_for_status()` turns a non-2xx
-one into an error.
+## Usage
 
 ```mbt check
 ///|
 #derive(FromJson)
-struct User {
+struct Account {
   id : Int32
   name : String
 }
 
 ///|
-pub async fn example() -> Unit {
+pub async fn example() -> Unit raise @requesto.HTTPError {
   let client = @requesto.Client::new(
     base_url="https://api.example.com/v1",
     headers=[("Accept", "application/json")],
     auth=Bearer("token"),
   )
   defer client.close()
-  let user : User = client
+  let user : Account = client
     .get("users/42", params=[("expand", "teams")])
     .raise_for_status()
     .json_as()
   println("user \{user.id}: \{user.name}")
   client.post("users", json={ "name": user.name }) |> ignore
-  println(@requesto.get("https://example.com/").text())
 }
 ```
 
-## What it does
+A response is a value whatever its status. `raise_for_status()` raises
+`HTTPStatusError` for anything outside 200–299 and otherwise returns the
+response, so calls chain. Every failure is an `HTTPError`; its variants are
+httpx2's exception names (`ConnectTimeout`, `ReadTimeout`, `ConnectError`,
+`TooManyRedirects`, `HTTPStatusError`, …), with `is_timeout()` and
+`is_transport_error()` in place of the class tree, and `mttp()` returns the
+`@mttp.TransportError` underneath.
 
-- `get`, `post`, `put`, `patch`, `delete`, `head`, `options` and `request`, on
-  a `Client` or as top-level functions.
-- Client defaults: `base_url` (always appended to), `headers`, `params`
-  (merged into any query already in the URL), `auth` (`Basic`, `Bearer`,
-  `Digest`), `timeout`, `retry`.
-- One body per call: `content` (bytes), `text`, `data` (form), `files`
-  (multipart, `@requesto.Part`), `json` or `body_stream`.
-- A response is a value whatever its status; `raise_for_status()` turns
-  non-2xx into `RequestoError::Status`.
-- Retries: idempotent methods on 408, 429, 500, 502, 503, 504 and transport
-  failures, any method when nothing was sent; `Retry-After` is honoured, else
-  backoff with jitter. A wait the client will not make returns the response
-  as it is; `response.retries` counts the sends after the first.
-  `retry=Retry::none()` turns retries off.
-- Redirects are followed, credentials dropped across origins, never `https`
-  to `http`, with `history`; `follow_redirects=false` per client or call.
-- Cookies are kept per client in an RFC 6265 jar, `client.cookies()`;
-  `cookies=Jar(jar)` shares one, `cookies=Off` keeps none.
-- Streaming both ways: `stream` hands over the response while its body is
-  still arriving (`read_some`, `each_chunk`, `each_line`); `body_stream` and
-  `Part::file_stream` send a body as it is read.
-- Server-sent events: `client.sse("GET", url, event => ...)`, or `each_event`
-  on a streamed response.
-- URLs are checked and normalised before sending; `@requesto.Url` takes
-  response URLs apart and resolves links.
-- `proxy` (or `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) and connection limits
-  (`max_connections`, `max_connections_per_origin`).
-- `steps`, links of the chain around the transport, with `on_request` and
-  `on_response` hooks.
+### Bodies and auth
 
-On JavaScript, `fetch` follows redirects before the client sees them, and in
-browsers handles cookies itself.
-
-## Limits and timeouts
-
-Every call is bounded by default. Each limit below can be changed: on the
-client, and `timeout`, `total_timeout`, `retry` and the stream limits per
-call too. The doc comments of `Client::new`, `Retry::new`, `Client::sse`
-and `Response::each_line` describe them. Times are in milliseconds.
-
-- `timeout`: 30 s per exchange (one send and its buffered response).
-- `total_timeout`: `max_retries + 2` exchanges' worth (150 s by default) for a
-  whole call with its redirects and retries; `None` lifts it.
-- `connect_timeout`, `write_timeout`, `read_timeout`, `pool_timeout`: unset by
-  default, so only `timeout` applies.
-- `max_body_bytes`: 64 MiB per buffered body; `None` lifts it.
-- `max_event_bytes` and `max_line_bytes`: 16 MiB per server-sent event or line.
-- `idle_timeout` on `sse`: 5 minutes for the next bytes after the head.
-- `max_redirects`: 10 in a row.
-- `Retry::new`: 3 retries, `Retry-After` honoured up to 60 s
-  (`max_retry_after`).
-
-A timeout raises `RequestoError::Timeout` or `RequestoError::TotalTimeout`; a
-body over its limit raises `RequestoError::Protocol`.
-
-## Testing
-
-Swap the transport for a `MockTransport`, and the clock for `VirtualClock`
-from `gaato/http-async/mock`, so tests need no sockets and no real sleeps:
+Each call takes one body: `content=` bytes, `text=`, `data=` as a form,
+`json=`, or `files=` with `data=` as the text fields of a multipart body.
+`auth=` takes `Basic(user, password)`, `Bearer(token)` or
+`Digest(user, password)`, on the client or on one call. A Digest challenge
+is answered only for the origin the request was built for, never after a
+redirect to another.
 
 ```mbt check
 ///|
-async test "a client answered by a mock transport" {
-  let client = @requesto.Client::new(
-    base_url="https://api.example.com/v1",
-    transport=@requesto.MockTransport::new(request => {
-      status: 200,
-      headers: @http.Headers::new(),
-      body: b"hello from \{request.url}",
-    }),
+pub async fn upload(
+  client : @requesto.Client,
+) -> Unit raise @requesto.HTTPError {
+  client
+  .post(
+    "reports",
+    data=[("title", "weekly")],
+    files=[@requesto.Part::file("file", "week.csv", "text/csv", b"a,b\n")],
+    auth=Digest("user", "password"),
   )
-  defer client.close()
-  let response = client.get("users/42").raise_for_status()
-  assert_eq(response.text(), "hello from https://api.example.com/v1/users/42")
+  .raise_for_status()
+  |> ignore
 }
 ```
 
-## Coming from
+### Streaming
 
-| | requests / httpx | axios / ky | Req | gaato/requesto |
-|---|---|---|---|---|
-| Call | `httpx.get(url, params=...)` | `ky.get(url, {searchParams})` | `Req.get!(url, params: ...)` | `@requesto.get(url, params=[...])` |
-| Client | `httpx.Client(base_url=...)` | `axios.create({baseURL})` | `Req.new(base_url: ...)` | `@requesto.Client::new(base_url=...)` |
-| JSON body | `json=...` | `json: ...` (ky) | `json: ...` | `json=...` |
-| Non-2xx | value, `raise_for_status()` | throws | value | value, `raise_for_status()` |
-| Read JSON | `.json()` | `.json()` / `data` | `.body` | `.json()`, `.json_as()` |
-| Redirects | `follow_redirects=`, `.history` | `maxRedirects` / `redirect` | `redirect:`, `max_redirects:` | `follow_redirects=`, `max_redirects=`, `.history` |
-| Cookies | `client.cookies` | the browser's | — | `client.cookies()`, `cookies=Jar(jar)` |
-| Streaming | `client.stream(...)`, `iter_lines()` | `responseType: 'stream'` | `into: fun` | `client.stream(...)`, `each_line` |
-| SSE | `httpx_sse.connect_sse` | `EventSource` | — | `client.sse(...)`, `each_event` |
-| Timeouts | `httpx.Timeout(connect=...)` | `timeout`, `totalTimeout` (ky) | `receive_timeout:` | `timeout=`, `total_timeout=`, `connect_timeout=`, ... |
-| Proxy | `proxy=` | `proxy` (axios) | `connect_options:` | `proxy=`, `trust_env` |
-| Hooks | `event_hooks` | interceptors / hooks | steps | `steps=[on_request(...), ...]` |
-| Retries | `HTTPAdapter(max_retries=Retry(...))` (off) | `retry` (ky, on) | `retry: :safe_transient` (on) | `retry=Retry::new(...)` (on) |
-| Digest | `HTTPDigestAuth` / `DigestAuth` | — | — | `auth=Digest(username=u, password=p)` |
-| Mock | `httpx.MockTransport` | — | `Req.Test` | `@requesto.MockTransport` |
+`client.stream` passes a response whose body is still on the connection to a
+function, and closes it when the function returns. Read it whole with
+`read()`, or piece by piece with `each_bytes`, `each_line` or, for
+server-sent events, `each_event`:
 
-## Links
+```mbt check
+///|
+pub async fn follow(client : @requesto.Client) -> Unit {
+  client.stream("GET", "events", async fn(response) {
+    response.raise_for_status() |> ignore
+    response.each_event(event => println("\{event.event}: \{event.data}"))
+  })
+}
+```
 
-- [Changelog](https://github.com/gaato/requesto.mbt/blob/main/CHANGELOG.md)
-- [Repository](https://github.com/gaato/requesto.mbt)
-- [Resource bounds](https://github.com/gaato/requesto.mbt/blob/main/RESOURCE_BOUNDS.md):
-  every limit a client enforces, and what happens past it
+A line longer than 1 MiB or an event longer than 16 MiB raises `TooLarge`
+(`max_line_bytes=`, `max_event_bytes=` change it).
+
+### Testing without a network
+
+`MockTransport::new` takes a handler of the same type an mttp server serves,
+so a client can call your app directly, as httpx2's `ASGITransport` does:
+
+```mbt check
+///|
+fn hello_app(_ : @mttp.Request) -> @mttp.Response {
+  @mttp.Response::new(200, body=Bytes(b"hello"))
+}
+
+///|
+async test "the app answers" {
+  let client = @requesto.Client::new(
+    transport=@requesto.MockTransport::new(req => hello_app(req)),
+  )
+  defer client.close()
+  assert_eq(client.get("https://app.test/").text(), "hello")
+}
+```
+
+## Coming from httpx2
+
+| httpx2 | requesto |
+|---|---|
+| `httpx2.get(url, params=..., headers=...)` | `@requesto.get(url, params=[...], headers=[...])` |
+| `httpx2.Client(base_url=..., auth=...)` | `@requesto.Client::new(base_url=..., auth=Bearer(...))` |
+| `content=b"..."` / `content="..."` | `content=b"..."` / `text="..."` |
+| `r.status_code`, `r.text`, `r.json()` | `r.status_code`, `r.text()`, `r.json()`, or `r.json_as()` into a type |
+| `with client.stream(...) as r:` | `client.stream(..., async fn(r) { ... })` |
+| `r.iter_bytes()`, `r.iter_lines()` | `r.each_bytes(f)`, `r.each_line(f)` |
+| `httpx_sse`'s `iter_sse()` | `r.each_event(f)` |
+| `files={"file": ("a.csv", data, "text/csv")}` | `files=[Part::file("file", "a.csv", "text/csv", data)]` |
+| `auth=("user", "pw")`, `DigestAuth("user", "pw")` | `auth=Basic("user", "pw")`, `auth=Digest("user", "pw")` |
+| `Limits(max_connections=100)` | `limits=Limits::new(max_connections=Some(100))` |
+| `proxy="http://..."`, `trust_env=False` | `proxy="http://..."`, `trust_env=false` |
+| `verify=False`, `verify="ca.pem"` | `trust=Insecure`, `trust=PemFile("ca.pem")` |
+| `Timeout(10.0, connect=5.0)` | `Timeout::new(Some(10_000), connect=Some(5_000))` (milliseconds) |
+| `event_hooks={"request": [...], "response": [...]}` | `event_hooks=EventHooks::new(request=[...], response=[...])` |
+| `MockTransport(handler)` | `MockTransport::new(handler)` |
+| `except httpx2.HTTPError` | `catch { e => ... }` on `HTTPError` |
+
+`HTTPError` and `status_code` keep httpx2's spelling rather than MoonBit's
+usual `HttpError` and mttp's `status`, so names can be guessed from httpx2.
+
+## Defaults
+
+The same as httpx2's: redirects are not followed (`follow_redirects=true` on
+the client or one call follows up to 20), nothing is retried (`retry=` takes
+an `@mttp.RetryPolicy`), each phase — connect, read, write, pool — has 5 s,
+the pool holds up to 100 connections and keeps 20 idle for 5 s, the client
+keeps cookies in a jar of its own (`cookie_jar=` shares one), proxies come from `HTTP_PROXY`, `HTTPS_PROXY` and
+`NO_PROXY`, and there is no deadline for the whole call (`total_timeout=`
+sets one). On JavaScript the host's `fetch` handles connections, proxies and
+TLS itself.
+
+One difference: a buffered body is limited to 64 MiB after decompression
+(`max_body_bytes=`), and a larger one fails with `TooLarge` instead of
+filling memory. Read larger bodies with `stream`.
+
+Text is decoded as UTF-8, with malformed sequences replaced by U+FFFD; read
+`content` for other encodings. Raw `content=` bytes are sent without a
+`Content-Type`, as in httpx2.
+
+## Using mttp alongside
+
+Types that need no sugar are mttp's own: `@mttp.Request`, `@mttp.Response`,
+`@mttp.Headers`, `@mttp.RetryPolicy`, `&@mttp.Backend`. `client.mttp()`
+returns the mttp client underneath, and `build_request` gives the
+`@mttp.Request` a call would send. Typed endpoints, routers, OpenAPI and
+servers are mttp's; use it directly for those.
 
 ## License
 

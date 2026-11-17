@@ -1,6 +1,5 @@
-// The human-facing entry point of the gaato HTTP stack: depends on
-// gaato/http-async so `Client::new()` needs no setup, and on gaato/http for
-// the vocabulary and the multipart encoder.
+// httpx2's way of writing HTTP calls, on gaato/mttp: requesto adds the
+// requests-style surface and its defaults, and mttp does the HTTP.
 
 name = "gaato/requesto"
 
@@ -14,15 +13,14 @@ repository = "https://github.com/gaato/requesto.mbt"
 
 keywords = [ "http", "client", "requests", "async" ]
 
-description = "A human-facing async HTTP client for MoonBit: verb functions, a client with defaults, body encoders, responses as values, and a step chain around a swappable transport."
+description = "httpx2's way of writing HTTP calls for MoonBit, on gaato/mttp: verb functions, a client with defaults, responses as values, raise_for_status, streaming, event hooks and a mock transport that runs an mttp server handler."
 
 source = "src"
 
 preferred_target = "native"
 
 import {
-  "gaato/http@0.5.0",
-  "gaato/http-async@0.5.0",
-  "moonbitlang/async@0.22.5",
-  "moonbitlang/x@0.5.6",
+  "gaato/mttp@0.4.0",
+  "gaato/mttp_core@0.2.0",
+  "gaato/mttp_digest@0.4.0",
 }

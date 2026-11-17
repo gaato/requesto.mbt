@@ -7,6 +7,42 @@ never does. Every breaking change is listed with a migration note.
 
 ## [Unreleased]
 
+### Changed
+
+- **requesto is developed again, rebuilt on [mttp](https://github.com/gaato/mttp)
+  as httpx2's way of writing HTTP calls.** It now depends on `gaato/mttp`
+  0.4.0, `gaato/mttp_core` 0.2.0 and `gaato/mttp_digest` 0.4.0, and runs on
+  `moonbitlang/core/async` instead of `moonbitlang/async`; a program cannot
+  use both runtimes, so the whole program moves at once. The
+  [migration guide](https://github.com/gaato/requesto.mbt/blob/main/MIGRATION.md)
+  maps each 0.2 name to its replacement. Breaking changes:
+  - `Response.status` is `status_code`, `RequestoError` is `HTTPError` with
+    httpx2's exception names as variants, and `Client::stream` passes a
+    `StreamResponse`.
+  - Redirects are no longer followed and nothing is retried unless asked
+    (`follow_redirects=true`, `retry=`), as in httpx2.
+  - `timeout` is a `Timeout` of per-phase limits, 5 s each by default, and
+    there is no deadline for the whole call unless `total_timeout` sets one.
+  - `steps`, `on_request` and `on_response` give way to `event_hooks` and
+    `transport`; `Retry` gives way to `@mttp.RetryPolicy`; `Cookies` to
+    `cookies=true` or `false`; `MockTransport::new` takes an mttp handler.
+  - `elapsed` is an `Int64` of milliseconds; `retries` is gone.
+  - Lines read with `each_line` are bounded at 1 MiB by default (was 16 MiB).
+
+### Added
+
+- `MockTransport::new` takes the same handler an mttp server serves, so a
+  client calls an app without a socket, as httpx2's `ASGITransport` does.
+- `Client::build_request` and `Client::send`, `Client::mttp` for the mttp
+  client underneath, `Limits`, `proxy=` and `trust_env=`, `trust=` (httpx2's
+  `verify`), `Response::reason_phrase` and `is_informational`, and the
+  `is_network_error` and `is_request_error` predicates.
+
+### Removed
+
+- `Client::sse` and `sse`: read events with `each_event` inside `stream`.
+- The `idle_timeout` of event streams: the read timeout bounds each read.
+
 ## [0.2.3] - 2026-11-10
 
 ### Deprecated

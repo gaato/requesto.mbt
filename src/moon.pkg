@@ -1,33 +1,30 @@
 import {
-  "gaato/http",
-  "gaato/http/clock",
-  "gaato/http/cookie",
-  "gaato/http/sse",
-  "gaato/http-async" @adapter,
-  "gaato/http/multipart",
-  "gaato/http/random",
-  "gaato/http/retry",
+  "gaato/mttp",
+  "gaato/mttp/runtime",
+  "gaato/mttp_core",
+  "gaato/mttp_core/client",
+  "gaato/mttp_core/h1client",
+  "gaato/mttp_core/multipart",
+  "gaato/mttp_core/rt",
+  "gaato/mttp_core/sse",
+  "gaato/mttp_digest",
   "moonbitlang/core/debug",
-  "moonbitlang/core/encoding/base64",
-  "moonbitlang/core/encoding/percent",
   "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/env",
   "moonbitlang/core/json",
-  "moonbitlang/x/crypto",
 }
 
 import {
-  "gaato/http",
-  "gaato/http/clock",
-  "gaato/http-async/mock" @simclock,
-  "moonbitlang/core/debug",
-  "gaato/http/multipart",
-  "moonbitlang/async",
-  "moonbitlang/async/aqueue",
-  "moonbitlang/core/encoding/utf8",
+  "gaato/mttp_core/client" @mttp_core_client,
+  "moonbitlang/core/async",
 } for "test"
 
 import {
-  "moonbitlang/async",
+  "moonbitlang/core/async",
 } for "wbtest"
 
-supported_targets = "js + native + wasm"
+supported_targets = "native+wasm+js"
+
+options(
+  "allow-experimental-packages": [ "moonbitlang/core/async" ],
+)

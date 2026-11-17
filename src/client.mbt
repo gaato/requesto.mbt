@@ -1,237 +1,381 @@
 ///|
-/// The `User-Agent` a client sends unless told otherwise.
+/// The default `User-Agent`, naming this module's version.
 let user_agent : String = "requesto/0.2.3"
 
 ///|
-/// How long one exchange may take, in milliseconds, unless told otherwise.
-let default_timeout : Int32 = 30_000
+/// The default bound on a buffered body, after decompression.
+let default_max_body_bytes : Int32 = 64 * 1024 * 1024
 
 ///|
-/// The largest buffered body the default transport accepts, unless told
-/// otherwise: 64 MiB, counted after decompression.
-let default_max_body_bytes : Int32 = 67_108_864
+/// The default number of redirects `follow_redirects` follows, as httpx2's.
+let default_max_redirects : Int32 = 20
 
 ///|
-/// The default transport's own deadline. The client applies `timeout` on its
-/// clock, so the transport's only has to stay out of the way of any timeout
-/// a call asks for.
-let transport_ceiling_ms : Int32 = 2_147_483_647
+/// The default time limit of each phase, as httpx2's.
+let default_phase_timeout_ms : Int32 = 5000
 
 ///|
-/// Defaults shared by the calls made through it, and the transport and clock
-/// they use. Call `close` when done, to drop the default transport's idle
-/// connections.
-pub struct Client {
-  priv base_url : String?
-  priv headers : @http.Headers
-  priv params : Array[(String, String)]
-  priv timeout : Int32
-  /// `None` to derive it from `timeout` and `retry`; `Some(None)` for no
-  /// bound.
-  priv total_timeout : Int32??
-  priv max_body_bytes : Int32?
-  priv steps : Array[Step]
-  priv follow_redirects : Bool
-  priv max_redirects : Int32
-  priv jar : CookieJar?
-  priv retry : Retry
-  priv auth : Step?
-  priv random : () -> Double
-  priv transport : &@http.Transport
-  priv clock : &@clock.Clock
-  priv owned : @adapter.AsyncTransport?
+/// Per-phase time limits in milliseconds, as httpx2's `Timeout`. `None`
+/// means no limit for that phase.
+pub(all) struct Timeout {
+  /// Connecting, TLS included.
+  connect : Int32?
+  /// The response's head, and each read of its body.
+  read : Int32?
+  /// Writing the request.
+  write : Int32?
+  /// Waiting for a free connection.
+  pool : Int32?
 }
 
 ///|
-/// Creates a client.
+/// `Timeout::new(Some(5000))` limits every phase to 5 s; name a phase to set
+/// it apart, as in httpx2's `Timeout(10.0, connect=5.0)`.
+pub fn Timeout::new(
+  all : Int32?,
+  connect~ : Int32? = all,
+  read~ : Int32? = all,
+  write~ : Int32? = all,
+  pool~ : Int32? = all,
+) -> Timeout {
+  { connect, read, write, pool, }
+}
+
+///|
+/// Connection pool limits, as httpx2's `Limits`: at most `max_connections`
+/// open (`None` for no limit), at most `max_keepalive_connections` idle, each
+/// idle one closed after `keepalive_expiry` milliseconds.
+pub(all) struct Limits {
+  max_connections : Int32?
+  max_keepalive_connections : Int32
+  keepalive_expiry : Int32
+}
+
+///|
+/// httpx2's defaults: 100 connections, 20 kept alive, for 5 s.
+pub fn Limits::new(
+  max_connections~ : Int32? = Some(100),
+  max_keepalive_connections~ : Int32 = 20,
+  keepalive_expiry~ : Int32 = 5000,
+) -> Limits {
+  { max_connections, max_keepalive_connections, keepalive_expiry, }
+}
+
+///|
+/// httpx2's `event_hooks`: functions that see each request before it is
+/// sent and each response before it is returned. A hook that raises fails
+/// the call. Hooks are plain functions, as on httpx2's sync `Client`, so a
+/// lambda can be written without annotations.
+pub struct EventHooks {
+  request : Array[(@mttp.Request) -> Unit raise HTTPError]
+  response : Array[(Response) -> Unit raise HTTPError]
+}
+
+///|
+/// Hooks run in order: `request` before each send, `response` after it.
+pub fn EventHooks::new(
+  request~ : Array[(@mttp.Request) -> Unit raise HTTPError] = [],
+  response~ : Array[(Response) -> Unit raise HTTPError] = [],
+) -> EventHooks {
+  { request, response, }
+}
+
+///|
+/// httpx2's `MockTransport`: a transport that calls a handler instead of the
+/// network. The handler has the type of an mttp server handler, so an app
+/// served with `@server.serve` can be passed here and called without a
+/// socket (what httpx2's `ASGITransport` does).
+pub struct MockTransport {
+  priv backend : &@mttp.Backend
+}
+
+///|
+/// A transport that answers every request with `handler`.
+pub fn MockTransport::new(handler : @mttp.Handler) -> MockTransport {
+  { backend: @client.from_handler(handler), }
+}
+
+///|
+/// `send` and `close` as methods of `MockTransport`.
+pub extend MockTransport with @mttp_core.Backend::{close, send}
+
+///|
+/// Calls the handler with the request.
+pub impl @mttp.Backend for MockTransport with fn send(self, request, options) {
+  self.backend.send(request, options)
+}
+
+///|
+/// Closes the handler's backend.
+pub impl @mttp.Backend for MockTransport with fn close(self) {
+  self.backend.close()
+}
+
+///|
+/// An mttp client plus the defaults requesto adds on top.
+pub struct Client {
+  priv inner : @mttp.Client
+  priv clock : &@rt.Clock
+  priv base_url : String
+  priv auth : Auth?
+  priv params : Array[(String, String)]
+  priv follow_redirects : Bool
+  priv max_body_bytes : Int32
+  priv hooks : EventHooks
+}
+
+///|
+/// The network backend's settings for a client's options. `getenv` reads the
+/// proxy variables when `trust_env` holds and no `proxy` is given.
+fn network_config(
+  timeout : Timeout,
+  limits : Limits,
+  proxy : String?,
+  trust_env : Bool,
+  getenv : (String) -> String?,
+) -> @h1client.ClientConfig {
+  {
+    ..@h1client.ClientConfig::default(),
+    pool_timeout_ms: timeout.pool,
+    connect_timeout_ms: timeout.connect,
+    write_timeout_ms: timeout.write,
+    read_timeout_ms: timeout.read,
+    max_connections: limits.max_connections,
+    max_idle_connections: limits.max_keepalive_connections,
+    idle_max_ms: limits.keepalive_expiry,
+    proxy: match proxy {
+      Some(url) => @h1client.ProxyConfig::fixed(url)
+      None if trust_env => @h1client.ProxyConfig::from_env(getenv)
+      None => @h1client.ProxyConfig::none()
+    },
+  }
+}
+
+///|
+/// httpx2's defaults: redirects not followed, no retries, 5 s per phase,
+/// cookies kept, no deadline for the whole call, proxies from the
+/// environment. mttp adds one bound httpx2 lacks: buffered bodies are
+/// limited to `max_body_bytes` (64 MiB).
 ///
-/// - `base_url`: prefixed to relative URLs; a call's URL is appended to it
-///   with one `/`, so `"/users"` and `"users"` both land under its path.
-/// - `headers`: sent with every call, after `User-Agent: requesto/<version>`,
-///   which a `User-Agent` here replaces.
-/// - `params`: query parameters added to every call.
-/// - `auth`: sets `Authorization` on calls that do not set it themselves.
-/// - `timeout`: milliseconds one exchange may take, 30 s by default: up to
-///   the whole response, or for a streamed one up to its head and then each
-///   read of its body.
-/// - `total_timeout`: milliseconds a whole call may take, its redirects,
-///   retries and the waits between them included, up to the whole response
-///   or a streamed one's head. Unset, it is `max_retries + 2` times the
-///   call's `timeout`: one for each send `retry` allows and one for the
-///   waits and redirects between them, 2.5 minutes by default. Raising
-///   `timeout` raises it too, and a single send's own `timeout` always runs
-///   out first; `None` lifts it.
-/// - `max_body_bytes`: the largest body buffered, 64 MiB by default, counted
-///   after decoding; `None` lifts it. The default transport applies it to
-///   each call; `Response::read` applies it to a streamed body.
-/// - `steps`: links of the chain around the transport, the first outermost;
-///   they see the call's first request and its final response, before
-///   redirects, retries and `auth`.
-/// - `retry`: when a call is sent again, `Retry::new()` by default: up to 3
-///   retries of idempotent methods on 408, 429, 500, 502, 503, 504 and
-///   transport failures, of any method when nothing was sent;
-///   `Retry::none()` turns it off.
-/// - `follow_redirects`: follows 301, 302, 303, 307 and 308 responses, at
-///   most `max_redirects` (10) in a row, as gaato/http's `follow_redirects`
-///   does: 303, and 301 or 302 after `POST`, turn into `GET` without the
-///   body; `Authorization`, `Cookie` and `Proxy-Authorization` are dropped
-///   when the origin changes; `https` to `http` is refused. On by default;
-///   each call can turn it off or on. On JS, `fetch` follows redirects
-///   before the client sees them.
-/// - `cookies`: by default the client keeps cookies in a jar of its own on
-///   its clock (`Client::cookies`), at most 50 per domain and 3000 in all,
-///   applied on every redirect hop. `Jar(jar)` uses `jar` instead, `Off`
-///   keeps none.
-/// - `transport`: replaces the default `AsyncTransport` of gaato/http-async.
-/// - `clock`: measures `timeout` and `elapsed`, and waits between retries.
-/// - `random`: values in `[0, 1)` for retry jitter, Digest client nonces and
-///   multipart boundaries; host randomness by default.
-///
-/// These configure the default transport and are ignored with `transport`:
-///
-/// - `connect_timeout`, `write_timeout`, `read_timeout`, `pool_timeout`:
-///   milliseconds for making a connection, sending the request, waiting for
-///   each read of the response, and waiting for a free connection. Unset,
-///   only `timeout` applies.
-/// - `max_connections`, `max_connections_per_origin`: open connections in
-///   all and to one origin; a call beyond them waits for one to be free.
-///   Unset, gaato/http-async's defaults apply.
-/// - `max_idle_per_origin`: connections kept open between calls, per origin.
-/// - `proxy`: an `http://` or `https://` proxy URL, credentials optional,
-///   for every call. Without it, `trust_env` (on by default) reads
-///   `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY` and `NO_PROXY`.
-///
-/// ```mbt check
-/// test {
-///   let client = @requesto.Client::new(
-///     base_url="https://api.example.com/v1",
-///     headers=[("Accept", "application/json")],
-///     auth=Bearer("token"),
-///   )
-///   client.close()
-/// }
-/// ```
+/// - `total_timeout` (milliseconds) opts in to a deadline for the whole
+///   call, redirects and retries included. Without it a stalled connection
+///   still fails on its phase timeout; only a slow transfer that keeps
+///   making progress runs on, as in httpx2.
+/// - `cookies` gives the client a jar of its own; `cookie_jar` shares one
+///   the caller made, with `@mttp.CookieJar::new`, between clients.
+/// - `retry` takes an `@mttp.RetryPolicy`, such as
+///   `RetryPolicy::conservative()`.
+/// - `proxy` sends every request through one proxy; otherwise, when
+///   `trust_env` holds, `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` choose.
+/// - `trust` is httpx2's `verify`: `System` roots, a `PemFile`, or
+///   `Insecure`.
+/// - `transport` replaces the network, for a `MockTransport` or any
+///   `@mttp.Backend`; `timeout`'s phases, `limits`, `proxy`, `trust_env` and
+///   `trust` configure only the network backend and are ignored then.
+/// - `clock` and `timer` replace the real ones, for tests on virtual time.
 pub fn Client::new(
   base_url? : String,
   headers~ : Array[(String, String)] = [],
   params~ : Array[(String, String)] = [],
+  cookies~ : Bool = true,
+  cookie_jar? : @mttp.CookieJar,
   auth? : Auth,
-  timeout~ : Int32 = default_timeout,
-  total_timeout? : Int32?,
-  max_body_bytes~ : Int32? = Some(default_max_body_bytes),
-  steps~ : Array[Step] = [],
-  follow_redirects~ : Bool = true,
+  timeout~ : Timeout = Timeout::new(Some(default_phase_timeout_ms)),
+  follow_redirects~ : Bool = false,
   max_redirects~ : Int32 = default_max_redirects,
-  cookies? : Cookies,
-  retry~ : Retry = Retry::new(),
-  transport? : &@http.Transport,
-  clock? : &@clock.Clock,
-  random? : () -> Double,
-  connect_timeout? : Int32,
-  write_timeout? : Int32,
-  read_timeout? : Int32,
-  pool_timeout? : Int32,
-  max_connections? : Int32,
-  max_connections_per_origin? : Int32,
-  max_idle_per_origin? : Int32,
+  retry~ : @mttp.RetryPolicy = @mttp.RetryPolicy::none(),
+  max_body_bytes~ : Int32 = default_max_body_bytes,
+  total_timeout? : Int32,
+  event_hooks~ : EventHooks = EventHooks::new(),
+  limits~ : Limits = Limits::new(),
   proxy? : String,
   trust_env~ : Bool = true,
+  trust~ : @mttp.Trust = System,
+  transport? : &@mttp.Backend,
+  clock? : &@rt.Clock,
+  timer? : &@rt.Timer,
 ) -> Client {
-  let defaults = @http.Headers::from_array([("user-agent", user_agent)])
-  let random = random.unwrap_or(@random.default_random)
-  let (transport, owned) = match transport {
-    Some(transport) => (transport, None)
-    None => {
-      let transport = @adapter.AsyncTransport::new(
-        timeout_ms=transport_ceiling_ms,
-        connect_timeout_ms?=connect_timeout,
-        write_timeout_ms?=write_timeout,
-        read_timeout_ms?=read_timeout,
-        pool_timeout_ms?=pool_timeout,
-        max_connections?,
-        max_connections_per_origin?,
-        max_idle_per_origin?,
-        max_body_bytes?,
-        proxy?,
-        trust_env~,
+  let mut h = @mttp_core.Headers::empty()
+  for pair in headers {
+    h = h.add(pair.0, pair.1)
+  }
+  if !h.contains("user-agent") {
+    h = h.add("User-Agent", user_agent)
+  }
+  let clock = clock.unwrap_or_else(@mttp.clock)
+  let timer = timer.unwrap_or_else(() => @runtime.ClockTimer::new(clock~))
+  let jar = match cookie_jar {
+    Some(jar) => Some(jar)
+    None if cookies => Some(@mttp.CookieJar::new(clock))
+    None => None
+  }
+  let backend = match transport {
+    Some(backend) => backend
+    None =>
+      @mttp.backend(
+        trust~,
+        config=network_config(
+          timeout, limits, proxy, trust_env, @env.get_env_var,
+        ),
       )
-      (transport as &@http.Transport, Some(transport))
-    }
   }
-  let clock = clock.unwrap_or_else(() => @adapter.AsyncClock::new())
-  {
-    base_url,
-    headers: merge_headers(defaults, headers),
-    params: [..params],
-    timeout,
-    total_timeout,
-    max_body_bytes,
-    steps: [..steps],
-    retry,
-    auth: auth.map(auth => auth_step(auth, random)),
-    random,
-    follow_redirects,
-    max_redirects,
-    jar: cookie_jar(cookies, clock),
-    transport,
+  // `@mttp.client` always sets an attempt deadline (30 s) and a total one
+  // (120 s), so build the Client directly: httpx2 bounds phases, not calls.
+  // The base URL is joined in `build_request`, as httpx2 does, so hooks and
+  // built requests see the URL that is sent.
+  let inner = @client.Client::new(
+    DigestLayer::new(backend),
     clock,
-    owned,
+    headers=h,
+    max_body_bytes~,
+    // A streamed body's reads get the read timeout, as in httpx2.
+    read_idle_ms?=timeout.read,
+    timer~,
+    retry~,
+    // Redirects are enabled underneath and turned on per request, so that
+    // `follow_redirects=true` on one call works on a client that does not.
+    redirect={ ..@mttp.RedirectConfig::default(), max_redirects, },
+    cookies?=jar,
+    total_ms?=total_timeout,
+  )
+  {
+    inner,
+    clock,
+    base_url: base_url.unwrap_or(""),
+    auth,
+    params,
+    follow_redirects,
+    max_body_bytes,
+    hooks: event_hooks,
   }
 }
 
 ///|
-/// Drops the default transport's idle connections. A transport passed to
-/// `Client::new` is left to its owner.
+/// The mttp client underneath, for a call requesto does not cover.
+pub fn Client::mttp(self : Client) -> @mttp.Client {
+  self.inner
+}
+
+///|
+/// Closes the client's connections.
 pub fn Client::close(self : Client) -> Unit {
-  if self.owned is Some(transport) {
-    transport.close()
+  self.inner.close()
+}
+
+///|
+/// A multipart boundary, random where the platform has a random source.
+fn multipart_boundary(clock : &@rt.Clock) -> String {
+  let seed = match random_unit() {
+    Some(r) => (r * 9007199254740992.0).to_uint64()
+    None => clock.now_unix_ms().reinterpret_as_uint64()
   }
+  "requesto-\{seed.to_string(radix=16)}"
 }
 
 ///|
-/// The client's cookie jar, or `None` with `cookies=Off`.
-///
-/// ```mbt check
-/// test {
-///   let client = @requesto.Client::new()
-///   assert_eq(client.cookies().map(jar => jar.length()), Some(0))
-///   client.close()
-/// }
-/// ```
-pub fn Client::cookies(self : Client) -> CookieJar? {
-  self.jar
+/// httpx2's `build_request`: the `@mttp.Request` a call would send, with the
+/// client's base URL, query parameters and auth applied. One body argument
+/// is used, in this order: `content`, `text`, `files` (with `data` as its
+/// text fields), `data` (as a form), `json`.
+pub fn Client::build_request(
+  self : Client,
+  verb : String,
+  url : String,
+  params~ : Array[(String, String)] = [],
+  headers~ : Array[(String, String)] = [],
+  content? : Bytes,
+  text? : String,
+  data? : Array[(String, String)],
+  files? : Array[Part],
+  json? : Json,
+  auth? : Auth,
+) -> @mttp.Request raise HTTPError {
+  let full = if self.base_url == "" {
+    url
+  } else {
+    @mttp_core.join_url(self.base_url, url)
+  }
+  let mut req = @mttp_core.Request::new(@mttp_core.Method::parse(verb), full)
+  for pair in self.params {
+    req = req.query(pair.0, pair.1)
+  }
+  for pair in params {
+    req = req.query(pair.0, pair.1)
+  }
+  for pair in headers {
+    req = req.header(pair.0, pair.1)
+  }
+  match (if auth is Some(_) { auth } else { self.auth }) {
+    Some(auth) => req = apply_auth(req, auth)
+    None => ()
+  }
+  match (content, text, files, data, json) {
+    (Some(b), _, _, _, _) => req = req.body_bytes(b)
+    (_, Some(s), _, _, _) => req = req.body_text(s)
+    (_, _, Some(files), fields, _) => {
+      let parts = fields
+        .unwrap_or([])
+        .map(pair => @multipart.Part::text(pair.0, pair.1))
+      parts.append(files)
+      req = @multipart.body(req, parts, boundary=multipart_boundary(self.clock)) catch {
+        e =>
+          raise InvalidRequest(
+            local_error(Invalid, Pool, "multipart body: \{@debug.to_string(e)}"),
+          )
+      }
+    }
+    (_, _, _, Some(form), _) => req = req.body_form(form)
+    (_, _, _, _, Some(j)) => req = req.body_json(j)
+    _ => ()
+  }
+  req
 }
 
 ///|
-/// Sends a request and returns its response, whatever its status.
-///
-/// - `url` is joined to `base_url`, then parsed and normalised as `Url`
-///   does; one that is not an absolute `http` or `https` URL is refused
-///   before anything is sent. Credentials in it (`user:pass@`) are taken
-///   out of the URL and sent as Basic `Authorization`, in place of the
-///   client's `auth`, unless the call sets `Authorization` itself.
-/// - `params` are added to the URL's query, after the client's; a name given
-///   here replaces the client's parameters of that name.
-/// - `headers` replace the client's headers of the same names.
-/// - At most one body: `content` (bytes, no `Content-Type`), `text`
-///   (`text/plain; charset=utf-8`), `data` (a URL-encoded form), `files`
-///   (`multipart/form-data`), `json` (compact `application/json`) or
-///   `body_stream` (sent as it is read, with `Content-Length` when
-///   `body_length` gives it and chunked otherwise). A `Content-Type` in the
-///   headers wins over the implied one. A body that streams, including
-///   files made with `Part::file_stream`, is sent at most once: retries and
-///   redirects that would send it again stop instead.
-/// - `timeout`, `total_timeout` and `retry` replace the client's for this
-///   call. A call that sets `timeout` but not `total_timeout`, on a client
-///   that sets none, derives its total from its own `timeout`. When the
-///   total runs out, the call raises `TotalTimeout`; a retry whose wait
-///   would not fit in what is left is not waited for, and the last response
-///   is returned or the last failure raised.
-/// - `follow_redirects` replaces the client's for this call. The response
-///   carries the redirects followed in `history` and the final URL in `url`.
+/// httpx2's `send`: sends a built request and reads its whole body.
+pub async fn Client::send(
+  self : Client,
+  req : @mttp.Request,
+  follow_redirects~ : Bool = self.follow_redirects,
+) -> Response raise HTTPError {
+  for hook in self.hooks.request {
+    hook(req)
+  }
+  let started = self.clock.now_unix_ms()
+  let reply = lift(() => {
+    @mttp.request(req)
+    .response(@mttp.as_bytes().any_status())
+    .follow_redirects(follow_redirects)
+    .send(self.inner)
+  })
+  let content = match reply.body {
+    Ok(bytes) => bytes
+    // any_status sends every status through Ok and as_bytes cannot fail to
+    // decode; keep whatever bytes an Err carries.
+    Err(UnexpectedStatus(_, body~)) | Err(Deserialization(_, body~, ..)) => body
+    Err(_) => b""
+  }
+  let response : Response = {
+    status_code: reply.status,
+    headers: reply.headers,
+    url: reply.attributes.get(@client.final_url).unwrap_or(reply.request.url),
+    content,
+    request: reply.request,
+    history: reply.attributes.get(@client.redirect_history).unwrap_or([]),
+    elapsed: self.clock.now_unix_ms() - started,
+  }
+  for hook in self.hooks.response {
+    hook(response)
+  }
+  response
+}
+
+///|
+/// Sends one request and reads its whole body, whatever the status. The
+/// body arguments are those of `build_request`.
 pub async fn Client::request(
   self : Client,
-  http_method : String,
+  verb : String,
   url : String,
   params~ : Array[(String, String)] = [],
   headers~ : Array[(String, String)] = [],
@@ -240,70 +384,34 @@ pub async fn Client::request(
   data? : Array[(String, String)],
   files? : Array[Part],
   json? : Json,
-  body_stream? : &@http.BodyStream,
-  body_length? : Int64,
-  timeout? : Int32,
-  total_timeout? : Int32?,
-  follow_redirects? : Bool,
-  retry? : Retry,
-) -> Response raise RequestoError {
-  let request = self.build(
-    http_method,
+  auth? : Auth,
+  follow_redirects~ : Bool = self.follow_redirects,
+) -> Response raise HTTPError {
+  let req = self.build_request(
+    verb,
     url,
-    params,
-    headers,
-    select_body(
-      content?,
-      text?,
-      data?,
-      files?,
-      json?,
-      body_stream?,
-      body_length?,
-    ),
+    params~,
+    headers~,
+    content?,
+    text?,
+    data?,
+    files?,
+    json?,
+    auth?,
   )
-  let timeout = timeout.unwrap_or(self.timeout)
-  let retry = retry.unwrap_or(self.retry)
-  let total = self.total_budget(total_timeout, timeout, retry)
-  self.within_total(request, total, deadline => {
-    run_steps(
-      self.chain(request, retry, follow_redirects, deadline),
-      request => self.exchange(request, timeout, stream=false),
-      request,
-    )
-  })
+  self.send(req, follow_redirects~)
 }
 
 ///|
-/// Sends a request like `request` and calls `f` with the response while its
-/// body is still on the connection, then closes it, whether `f` read it or
-/// not. Steps see the response before `f`; every response the call opened,
-/// including ones a step dropped or raised over, is closed when it ends.
-/// The redirect responses in `history` are closed unread before the next
-/// request goes out: they keep their status, headers and URL, not their
-/// bodies.
-///
-/// ```mbt check
-/// async test {
-///   let client = @requesto.Client::new(
-///     transport=@requesto.MockTransport::new(_ => {
-///       status: 200,
-///       headers: @http.Headers::new(),
-///       body: b"line one",
-///     }),
-///   )
-///   let size = client.stream("GET", "https://example.com/export", response => {
-///     let mut size = 0
-///     response.each_chunk(chunk => size += chunk.length())
-///     size
-///   })
-///   assert_eq(size, 8)
-/// }
-/// ```
+/// httpx2's `with client.stream(...) as response:`. The response is valid
+/// only inside `f` and is closed when `f` returns; errors from `f` come out
+/// unchanged. Request hooks run; response hooks do not, since the body is
+/// not read.
 pub async fn[T] Client::stream(
   self : Client,
-  http_method : String,
+  verb : String,
   url : String,
+  f : async (StreamResponse) -> T,
   params~ : Array[(String, String)] = [],
   headers~ : Array[(String, String)] = [],
   content? : Bytes,
@@ -311,221 +419,45 @@ pub async fn[T] Client::stream(
   data? : Array[(String, String)],
   files? : Array[Part],
   json? : Json,
-  body_stream? : &@http.BodyStream,
-  body_length? : Int64,
-  timeout? : Int32,
-  total_timeout? : Int32?,
-  follow_redirects? : Bool,
-  retry? : Retry,
-  f : async (Response) -> T,
+  auth? : Auth,
+  follow_redirects~ : Bool = self.follow_redirects,
 ) -> T {
-  let request = self.build(
-    http_method,
+  let req = self.build_request(
+    verb,
     url,
-    params,
-    headers,
-    select_body(
-      content?,
-      text?,
-      data?,
-      files?,
-      json?,
-      body_stream?,
-      body_length?,
-    ),
+    params~,
+    headers~,
+    content?,
+    text?,
+    data?,
+    files?,
+    json?,
+    auth?,
   )
-  let timeout = timeout.unwrap_or(self.timeout)
-  let retry = retry.unwrap_or(self.retry)
-  let total = self.total_budget(total_timeout, timeout, retry)
-  // Every response opened during the call is closed when it ends, so a
-  // step that raises after `next`, or drops a response it replaced, cannot
-  // leave a connection behind.
-  let opened : Array[Response] = []
-  defer opened.each(response => response.close())
-  // The total covers the response's head; reading the body is bounded per
-  // read instead, as `f` may read for as long as the stream lasts.
-  let response = self.within_total(request, total, deadline => {
-    run_steps(
-      self.chain(request, retry, follow_redirects, deadline),
-      request => {
-        let response = self.exchange(request, timeout, stream=true)
-        opened.push(response)
-        response
-      },
-      request,
+  for hook in self.hooks.request {
+    hook(req)
+  }
+  let max_body_bytes = self.max_body_bytes
+  let reply = lift_any(() => {
+    @mttp.request(req)
+    .response(
+      @client.as_stream(async fn(head, body) {
+        f({
+          status_code: head.status,
+          headers: head.headers,
+          url: req.url,
+          request: req.head(),
+          body,
+          max_body_bytes,
+        })
+      }).any_status(),
     )
+    .follow_redirects(follow_redirects)
+    .send(self.inner)
   })
-  f(response)
-}
-
-///|
-/// The milliseconds a call may take in all, or `None` for no bound: the
-/// call's `total_timeout`, else the client's, else `max_retries + 2`
-/// exchanges of the call's `timeout`: one per send, and one for the waits
-/// and redirects between them, so that a call sent once times out on its
-/// own `timeout`, with its phase, before the total.
-fn Client::total_budget(
-  self : Client,
-  total_timeout : Int32??,
-  timeout : Int32,
-  retry : Retry,
-) -> Int32? {
-  let set = if total_timeout is Some(_) {
-    total_timeout
-  } else {
-    self.total_timeout
-  }
-  match set {
-    Some(total) => total
-    None => {
-      let ms = (retry.max_retries.to_int64() + 2L) * timeout.to_int64()
-      Some(if ms > max_int32 { transport_ceiling_ms } else { ms.to_int() })
-    }
-  }
-}
-
-///|
-/// `Int32` max, as an `Int64`.
-let max_int32 : Int64 = 2_147_483_647L
-
-///|
-/// Runs `f` within `total` milliseconds on the client's clock, raising
-/// `TotalTimeout` for `request` when they run out; `f` gets the deadline,
-/// in milliseconds on that clock, or `None` without a bound.
-async fn[T] Client::within_total(
-  self : Client,
-  request : Request,
-  total : Int32?,
-  f : async (Int64?) -> T raise RequestoError,
-) -> T raise RequestoError {
-  guard total is Some(ms) else { return f(None) }
-  let deadline = self.clock.now_unix_ms() + ms.to_int64()
-  let outcome = @adapter.with_timeout_opt(self.clock, ms, () => {
-    try f(Some(deadline)) catch {
-      error => Err(error)
-    } noraise {
-      value => Ok(value)
-    }
-  }) catch {
-    error => raise map_transport_error(error, request)
-  }
-  match outcome {
-    Some(Ok(value)) => value
-    Some(Err(error)) => raise error
-    None => raise TotalTimeout(request~, timeout=ms)
-  }
-}
-
-///|
-/// The chain of one call, outermost first: the client's steps, the
-/// redirect step unless `follow_redirects` is off, then for each hop the
-/// retry step, `auth` and the cookie step. Retries and auth run per hop, as
-/// in requests and Req: a hop is resent on its own, so a request already
-/// answered with a redirect is never sent again, and auth answers each hop
-/// with its own method and URI, but only on the origin of `request`.
-fn Client::chain(
-  self : Client,
-  request : Request,
-  retry : Retry,
-  follow_redirects : Bool?,
-  deadline : Int64?,
-) -> Array[Step] {
-  let chain = [..self.steps]
-  if follow_redirects.unwrap_or(self.follow_redirects) {
-    chain.push(redirect_step(self.max_redirects))
-  }
-  chain.push(retry_step(retry, self.clock, self.random, deadline))
-  if self.auth is Some(auth) {
-    chain.push(same_origin_only(request.url, auth))
-  }
-  if self.jar is Some(jar) {
-    chain.push(cookie_step(jar))
-  }
-  chain
-}
-
-///|
-/// The request a call describes, before the steps.
-fn Client::build(
-  self : Client,
-  http_method : String,
-  url : String,
-  params : Array[(String, String)],
-  headers : Array[(String, String)],
-  body : Body,
-) -> Request raise RequestoError {
-  check_method(http_method)
-  let parsed = parse_url(join_url(self.base_url, url))
-  let url = without_userinfo(
-    parsed
-    .without_fragment()
-    .append_query_params(merge_params(self.params, params))
-    .to_string(),
-    parsed.userinfo,
-  )
-  let headers = merge_headers(self.headers, headers)
-  if parsed.userinfo is Some(userinfo) && !headers.contains("authorization") {
-    let (username, password) = split_userinfo(userinfo)
-    headers.set("authorization", basic_value(username, password))
-  }
-  let (content_type, body) = body.encode(random=self.random)
-  if content_type is Some(value) && !headers.contains("content-type") {
-    headers.set("content-type", value)
-  }
-  { http_method: http_method.to_upper(), url, headers, body, }
-}
-
-///|
-/// Raises unless `http_method` is an HTTP token.
-fn check_method(http_method : String) -> Unit raise RequestoError {
-  if http_method.is_empty() || !http_method.iter().all(is_tchar) {
-    raise InvalidRequest(message="invalid method: \{http_method}")
-  }
-}
-
-///|
-/// The last link: one exchange with the transport, within `timeout` on the
-/// client's clock. A streamed exchange ends at the response head and leaves
-/// the body on the connection.
-async fn Client::exchange(
-  self : Client,
-  request : Request,
-  timeout : Int32,
-  stream~ : Bool,
-) -> Response raise RequestoError {
-  let started = self.clock.now_unix_ms()
-  let received = @adapter.with_timeout_opt(self.clock, timeout, () => {
-    if stream {
-      let (head, body) = self.transport.send_stream(request)
-      (head.status, head.headers, Open(body, started=false))
-    } else {
-      let response = self.transport.send(request)
-      (
-        response.status,
-        response.headers,
-        Buffered(response.body, delivered=false),
-      )
-    }
-  }) catch {
-    error => raise map_transport_error(error, request)
-  }
-  guard received is Some((status, headers, state)) else {
-    raise Timeout(request~, phase=Unknown, timeout~)
-  }
-  {
-    status,
-    headers,
-    url: request.url,
-    request,
-    history: [],
-    elapsed: (self.clock.now_unix_ms() - started).to_int(),
-    retries: 0,
-    body: {
-      state,
-      closed: false,
-      max_bytes: self.max_body_bytes,
-      clock: self.clock,
-      timeout: Some(timeout),
-    },
+  match reply.body {
+    Ok(value) => value
+    // any_status sends every status to the function.
+    Err(failure) => raise DecodingError(failure.to_string())
   }
 }

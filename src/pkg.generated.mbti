@@ -2,160 +2,157 @@
 package "gaato/requesto"
 
 import {
-  "gaato/http",
-  "gaato/http/clock",
-  "gaato/http/cookie",
-  "gaato/http/multipart",
-  "gaato/http/sse",
-  "moonbitlang/core/debug",
+  "gaato/mttp/trust",
+  "gaato/mttp_core",
+  "gaato/mttp_core/client",
+  "gaato/mttp_core/cookie",
+  "gaato/mttp_core/multipart",
+  "gaato/mttp_core/rt",
+  "gaato/mttp_core/sse",
   "moonbitlang/core/json",
 }
 
 // Values
-pub async fn delete(String, params? : Array[(String, String)], headers? : Array[(String, String)], timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
+pub async fn delete(String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub async fn get(String, params? : Array[(String, String)], headers? : Array[(String, String)], timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
+pub async fn get(String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub async fn head(String, params? : Array[(String, String)], headers? : Array[(String, String)], timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
+pub async fn head(String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub fn on_request(async (@http.Request) -> Unit raise RequestoError) -> async (@http.Request, async (@http.Request) -> Response raise RequestoError) -> Response raise RequestoError
+pub async fn options(String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub fn on_response(async (Response) -> Unit raise RequestoError) -> async (@http.Request, async (@http.Request) -> Response raise RequestoError) -> Response raise RequestoError
+pub async fn patch(String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub async fn options(String, params? : Array[(String, String)], headers? : Array[(String, String)], timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
+pub async fn post(String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub async fn patch(String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, body_stream? : &@http.BodyStream, body_length? : Int64, timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
+pub async fn put(String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub async fn post(String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, body_stream? : &@http.BodyStream, body_length? : Int64, timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
+pub async fn request(String, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub async fn put(String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, body_stream? : &@http.BodyStream, body_length? : Int64, timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
-
-pub async fn request(String, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, body_stream? : &@http.BodyStream, body_length? : Int64, timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
-
-pub async fn sse(String, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, body_stream? : &@http.BodyStream, body_length? : Int64, timeout? : Int32, total_timeout? : Int32?, idle_timeout? : Int32?, max_event_bytes? : Int32, async (@sse.SseEvent) -> Unit) -> Unit
-
-pub async fn[T] stream(String, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, body_stream? : &@http.BodyStream, body_length? : Int64, timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry, async (Response) -> T) -> T
+pub async fn[T] stream(String, String, async (StreamResponse) -> T, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> T
 
 // Errors
-pub(all) suberror RequestoError {
-  Timeout(request~ : @http.Request, phase~ : @http.Phase, timeout~ : Int32)
-  TotalTimeout(request~ : @http.Request, timeout~ : Int32)
-  Network(request~ : @http.Request, phase~ : @http.Phase, message~ : String)
-  Protocol(request~ : @http.Request, message~ : String)
-  Proxy(request~ : @http.Request, status~ : Int32, message~ : String)
-  TooManyRedirects(request~ : @http.Request, max~ : Int32)
-  InvalidRedirect(request~ : @http.Request, location~ : String, message~ : String)
-  ResponseNotRead(request~ : @http.Request)
-  StreamConsumed(request~ : @http.Request)
-  UnsupportedProtocol(url~ : String)
-  InvalidURL(url~ : String, message~ : String)
-  InvalidRequest(message~ : String)
-  Decoding(message~ : String)
-  Status(request~ : @http.Request, response~ : Response)
+pub(all) suberror HTTPError {
+  ConnectTimeout(@mttp_core.TransportError)
+  ReadTimeout(@mttp_core.TransportError)
+  WriteTimeout(@mttp_core.TransportError)
+  PoolTimeout(@mttp_core.TransportError)
+  TotalTimeout(@mttp_core.TransportError)
+  ConnectError(@mttp_core.TransportError)
+  ReadError(@mttp_core.TransportError)
+  WriteError(@mttp_core.TransportError)
+  ProtocolError(@mttp_core.TransportError)
+  ProxyError(@mttp_core.TransportError, status~ : Int32)
+  TooManyRedirects(@mttp_core.TransportError)
+  RedirectRefused(@mttp_core.TransportError)
+  TooLarge(@mttp_core.TransportError, limit~ : Int32)
+  InvalidRequest(@mttp_core.TransportError)
+  StreamClosed(@mttp_core.TransportError)
+  TransportError(@mttp_core.TransportError)
+  HTTPStatusError(Response)
+  DecodingError(String)
 }
-pub fn RequestoError::is_timeout(Self) -> Bool
-pub fn RequestoError::is_transport_error(Self) -> Bool
-pub fn RequestoError::is_unsent(Self) -> Bool
-pub fn RequestoError::output(Self, &Logger) -> Unit
-pub fn RequestoError::to_repr(Self) -> @debug.Repr
-pub fn RequestoError::to_string(Self) -> String
-pub impl Show for RequestoError
-pub impl @debug.Debug for RequestoError
+pub fn HTTPError::is_network_error(Self) -> Bool
+pub fn HTTPError::is_request_error(Self) -> Bool
+pub fn HTTPError::is_timeout(Self) -> Bool
+pub fn HTTPError::is_transport_error(Self) -> Bool
+pub fn HTTPError::mttp(Self) -> @mttp_core.TransportError?
+pub fn HTTPError::output(Self, &Logger) -> Unit
+pub fn HTTPError::to_string(Self) -> String
+pub impl Show for HTTPError
 
 // Types and methods
-#non_exhaustive
 pub(all) enum Auth {
-  Basic(username~ : String, password~ : String)
+  Basic(String, String)
   Bearer(String)
-  Digest(username~ : String, password~ : String)
+  Digest(String, String)
 }
-pub fn Auth::to_repr(Self) -> @debug.Repr
-pub impl @debug.Debug for Auth
 
 pub struct Client {
   // private fields
 }
+pub fn Client::build_request(Self, String, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth) -> @mttp_core.Request raise HTTPError
 pub fn Client::close(Self) -> Unit
-pub fn Client::cookies(Self) -> @cookie.CookieJar?
-pub async fn Client::delete(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
-pub async fn Client::get(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
-pub async fn Client::head(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
-pub fn Client::new(base_url? : String, headers? : Array[(String, String)], params? : Array[(String, String)], auth? : Auth, timeout? : Int32, total_timeout? : Int32?, max_body_bytes? : Int32?, steps? : Array[async (@http.Request, async (@http.Request) -> Response raise RequestoError) -> Response raise RequestoError], follow_redirects? : Bool, max_redirects? : Int32, cookies? : Cookies, retry? : Retry, transport? : &@http.Transport, clock? : &@clock.Clock, random? : () -> Double, connect_timeout? : Int32, write_timeout? : Int32, read_timeout? : Int32, pool_timeout? : Int32, max_connections? : Int32, max_connections_per_origin? : Int32, max_idle_per_origin? : Int32, proxy? : String, trust_env? : Bool) -> Self
-pub async fn Client::options(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
-pub async fn Client::patch(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, body_stream? : &@http.BodyStream, body_length? : Int64, timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
-pub async fn Client::post(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, body_stream? : &@http.BodyStream, body_length? : Int64, timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
-pub async fn Client::put(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, body_stream? : &@http.BodyStream, body_length? : Int64, timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
-pub async fn Client::request(Self, String, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, body_stream? : &@http.BodyStream, body_length? : Int64, timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry) -> Response raise RequestoError
-pub async fn Client::sse(Self, String, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, body_stream? : &@http.BodyStream, body_length? : Int64, timeout? : Int32, total_timeout? : Int32?, idle_timeout? : Int32?, max_event_bytes? : Int32, async (@sse.SseEvent) -> Unit) -> Unit
-pub async fn[T] Client::stream(Self, String, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, body_stream? : &@http.BodyStream, body_length? : Int64, timeout? : Int32, total_timeout? : Int32?, follow_redirects? : Bool, retry? : Retry, async (Response) -> T) -> T
+pub async fn Client::delete(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn Client::get(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn Client::head(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
+pub fn Client::mttp(Self) -> @client.Client
+pub fn Client::new(base_url? : String, headers? : Array[(String, String)], params? : Array[(String, String)], cookies? : Bool, cookie_jar? : @cookie.CookieJar, auth? : Auth, timeout? : Timeout, follow_redirects? : Bool, max_redirects? : Int32, retry? : @client.RetryPolicy, max_body_bytes? : Int32, total_timeout? : Int32, event_hooks? : EventHooks, limits? : Limits, proxy? : String, trust_env? : Bool, trust? : @trust.Trust, transport? : &@mttp_core.Backend, clock? : &@rt.Clock, timer? : &@rt.Timer) -> Self
+pub async fn Client::options(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn Client::patch(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn Client::post(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn Client::put(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn Client::request(Self, String, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn Client::send(Self, @mttp_core.Request, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn[T] Client::stream(Self, String, String, async (StreamResponse) -> T, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool) -> T
 
-pub(all) enum Cookies {
-  Jar(@cookie.CookieJar)
-  Off
+pub struct EventHooks {
+  request : Array[(@mttp_core.Request) -> Unit raise HTTPError]
+  response : Array[(Response) -> Unit raise HTTPError]
 }
+pub fn EventHooks::new(request? : Array[(@mttp_core.Request) -> Unit raise HTTPError], response? : Array[(Response) -> Unit raise HTTPError]) -> Self
+
+pub(all) struct Limits {
+  max_connections : Int32?
+  max_keepalive_connections : Int32
+  keepalive_expiry : Int32
+}
+pub fn Limits::new(max_connections? : Int32?, max_keepalive_connections? : Int32, keepalive_expiry? : Int32) -> Self
 
 pub struct MockTransport {
   // private fields
 }
-pub fn MockTransport::new(async (@http.Request) -> @http.Response raise @http.HttpError) -> Self
-pub async fn MockTransport::send(Self, @http.Request) -> @http.Response raise @http.HttpError
-pub async fn MockTransport::send_stream(Self, @http.Request) -> (@http.ResponseHead, &@http.BodyStream) raise @http.HttpError
-pub impl @http.Transport for MockTransport
+pub fn MockTransport::close(Self) -> Unit
+pub fn MockTransport::new(async (@mttp_core.Request) -> @mttp_core.Response noraise) -> Self
+pub async fn MockTransport::send(Self, @mttp_core.Request, @mttp_core.SendOptions) -> @mttp_core.Response raise @mttp_core.TransportError
+pub impl @mttp_core.Backend for MockTransport
 
 pub struct Response {
-  status : Int32
-  headers : @http.Headers
+  status_code : Int32
+  headers : @mttp_core.Headers
   url : String
-  request : @http.Request
-  history : Array[Response]
-  elapsed : Int32
-  retries : Int32
-  // private fields
+  content : Bytes
+  request : @mttp_core.RequestHead
+  history : Array[@client.RedirectHop]
+  elapsed : Int64
 }
-pub fn Response::close(Self) -> Unit
-pub fn Response::content(Self) -> Bytes raise RequestoError
-pub async fn Response::each_chunk(Self, async (Bytes) -> Unit) -> Unit
-pub async fn Response::each_event(Self, async (@sse.SseEvent) -> Unit, max_event_bytes? : Int32, idle_timeout? : Int32?) -> Unit
-pub async fn Response::each_line(Self, async (String) -> Unit, max_line_bytes? : Int32) -> Unit
 pub fn Response::is_client_error(Self) -> Bool
 pub fn Response::is_error(Self) -> Bool
 pub fn Response::is_informational(Self) -> Bool
 pub fn Response::is_redirect(Self) -> Bool
 pub fn Response::is_server_error(Self) -> Bool
 pub fn Response::is_success(Self) -> Bool
-pub fn Response::json(Self) -> @json.Json raise RequestoError
-pub fn[T : @json.FromJson] Response::json_as(Self) -> T raise RequestoError
-pub fn Response::new(Int32, @http.Request, headers? : @http.Headers, content? : Bytes, url? : String, history? : Array[Self], elapsed? : Int32, retries? : Int32) -> Self
-pub fn Response::raise_for_status(Self) -> Self raise RequestoError
-pub async fn Response::read(Self) -> Bytes raise RequestoError
-pub async fn Response::read_some(Self) -> Bytes? raise RequestoError
-pub fn Response::text(Self) -> String raise RequestoError
+pub fn Response::json(Self) -> @json.Json raise HTTPError
+pub fn[T : @json.FromJson] Response::json_as(Self) -> T raise HTTPError
+pub fn Response::raise_for_status(Self) -> Self raise HTTPError
+pub fn Response::reason_phrase(Self) -> String
+pub fn Response::text(Self) -> String
 
-pub struct Retry {
+pub struct StreamResponse {
+  status_code : Int32
+  headers : @mttp_core.Headers
+  url : String
+  request : @mttp_core.RequestHead
   // private fields
 }
-pub fn Retry::new(max_retries? : Int32, statuses? : Array[Int32], methods? : Array[String], max_retry_after? : Int32, base_delay? : Int32, max_delay? : Int32) -> Self
-pub fn Retry::none() -> Self
+pub async fn StreamResponse::each_bytes(Self, async (Bytes) -> Unit) -> Unit
+pub async fn StreamResponse::each_event(Self, async (@sse.SseEvent) -> Unit, max_event_bytes? : Int32) -> Unit
+pub async fn StreamResponse::each_line(Self, async (String) -> Unit, max_line_bytes? : Int32) -> Unit
+pub fn StreamResponse::is_success(Self) -> Bool
+pub fn StreamResponse::raise_for_status(Self) -> Self raise HTTPError
+pub async fn StreamResponse::read(Self) -> Bytes raise HTTPError
+
+pub(all) struct Timeout {
+  connect : Int32?
+  read : Int32?
+  write : Int32?
+  pool : Int32?
+}
+pub fn Timeout::new(Int32?, connect? : Int32?, read? : Int32?, write? : Int32?, pool? : Int32?) -> Self
 
 // Type aliases
-pub using @cookie {type Cookie}
-
-pub using @cookie {type CookieJar}
-
-pub type Next = async (@http.Request) -> Response raise RequestoError
-
 pub using @multipart {type Part}
 
-pub using @http {type Phase}
-
-pub using @http {type Request}
-
-pub using @cookie {type SameSite}
-
 pub using @sse {type SseEvent}
-
-pub type Step = async (@http.Request, async (@http.Request) -> Response raise RequestoError) -> Response raise RequestoError
-
-pub using @http {type Url}
 
 // Traits

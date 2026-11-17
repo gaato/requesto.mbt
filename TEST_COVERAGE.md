@@ -39,25 +39,28 @@ ledger OK, 1 = an unexplained or over-budget file, 2 = the run itself failed
 - moon's bundled tcc cannot link on some hosts (openSUSE); the script sets
   `MOON_CC=cc` unless it is already set.
 
-Snapshot at the last full measurement (2026-10-19): **99.6 %** (751/754
+Snapshot at the last full measurement (2026-11-17): **97.7 %** (296/303
 lines).
 
 ## Policy
 
 Must be covered by tests:
 
-- the pure decisions: URL joining, query and header merging, URL and method
-  checks, body selection and encoding, status classes, error mapping and
-  messages, line splitting and the event-stream checks, retry decisions and
-  backoff, Digest challenge parsing, response computation and nonce state;
+- the pure decisions: URL joining, query and header merging, body
+  selection and encoding, status classes and reason phrases, the mapping of
+  every mttp failure kind and phase to an `HTTPError` variant, error
+  messages, line splitting, the network settings a client's options make,
+  and the Digest session bound;
 - every `raise` arm reachable through the public API;
-- the client, the verbs, the top-level functions, the step chain, the
-  timeout, retries, Digest and the streamed readers (chunks, lines, events),
-  through `MockTransport` and `VirtualClock`.
+- the client, every verb, the top-level functions, hooks, the streamed
+  readers (chunks, lines, events), Digest, cookies, redirects and
+  `total_timeout`, through `MockTransport` and `VirtualClock`.
 
 Accepted as uncovered (needs a row):
 
 - defensive arms that are unreachable by construction;
+- arms for a platform without a random source, which the test targets all
+  have;
 - testable lines not yet tested, marked `not yet tested`.
 
 Budgets are exact uncovered counts at the last measurement.
@@ -66,5 +69,6 @@ Budgets are exact uncovered counts at the last measurement.
 
 | File | Budget | Reason |
 | --- | --- | --- |
-| src/client.mbt | 1 | The `catch` of `Client::within_total`: `f`'s failures come back as values, so `with_timeout_opt` raises only when the call's own task is cancelled, and a cancelled caller cannot observe what the call raises. |
-| src/body.mbt | 2 | Two arms of the multipart error mapping that cannot be reached: `InvalidBoundary`, since `encode_segments_fresh` and `encode_multipart` draw boundaries with `make_boundary`, which only makes valid ones; and `StreamPart`, since `encode_multipart` calls `encode_segments_fresh` only when every part is bytes. |
+| src/client.mbt | 4 | Three arms for a reply whose body is `Err`, in `Client::send` (two lines) and `Client::stream`: both ask mttp for `any_status()`, which sends every status through `Ok`, and the readers they use cannot fail to decode. One arm of `multipart_boundary` for a platform without a random source; every test target has one. |
+| src/error.mbt | 2 | The `None` arm of `HTTPError`'s `output`, reached only by variants that always carry an mttp error; and the catch-all arm of `from_mttp`, which `Kind`'s `#non_exhaustive` requires and no kind of mttp_core 0.2.0 reaches. |
+| src/auth.mbt | 1 | The refusal of Digest on a platform without a random source; every test target has one. |
