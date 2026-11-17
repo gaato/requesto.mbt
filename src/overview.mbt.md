@@ -157,9 +157,9 @@ The same as httpx2's: redirects are not followed (`follow_redirects=true` on
 the client or one call follows up to 20), nothing is retried (`retry=` takes
 an `@mttp.RetryPolicy`), each phase — connect, read, write, pool — has 5 s,
 the pool holds up to 100 connections and keeps 20 idle for 5 s, the client
-keeps cookies in a jar of its own (`cookie_jar=` shares one), proxies come from `HTTP_PROXY`, `HTTPS_PROXY` and
-`NO_PROXY`, and there is no deadline for the whole call (`total_timeout=`
-sets one). On JavaScript the host's `fetch` handles connections, proxies and
+keeps cookies in a jar of its own (`cookie_jar=` shares one), proxies come
+from `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`, and there is no deadline for
+the whole call (`total_timeout=` sets one). On JavaScript the host's `fetch` handles connections, proxies and
 TLS itself.
 
 One difference: a buffered body is limited to 64 MiB after decompression

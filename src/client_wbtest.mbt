@@ -5,7 +5,7 @@ test "defaults: httpx2's 5 s phases, 20 redirects and pool limits, 64 MiB bodies
   assert_eq(default_max_body_bytes, 64 * 1024 * 1024)
   assert_eq(default_max_line_bytes, 1024 * 1024)
   assert_eq(default_max_event_bytes, 16 * 1024 * 1024)
-  assert_eq(user_agent, "requesto/0.2.3")
+  assert_eq(user_agent, "requesto/0.3.0")
   let config = network_config(
     Timeout::new(Some(default_phase_timeout_ms)),
     Limits::new(),

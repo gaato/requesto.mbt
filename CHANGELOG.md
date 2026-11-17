@@ -7,6 +7,8 @@ never does. Every breaking change is listed with a migration note.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-17
+
 ### Changed
 
 - **requesto is developed again, rebuilt on [mttp](https://github.com/gaato/mttp)

@@ -1,6 +1,6 @@
 ///|
 /// The default `User-Agent`, naming this module's version.
-let user_agent : String = "requesto/0.2.3"
+let user_agent : String = "requesto/0.3.0"
 
 ///|
 /// The default bound on a buffered body, after decompression.
