@@ -26,6 +26,25 @@ grep -Fq "let user_agent : String = \"requesto/$version\"" src/client.mbt || {
   echo "src/client.mbt: user_agent does not name version $version from moon.mod" >&2
   exit 1
 }
+# Scripts import moonbitlang/core/async, not the registry moonbitlang/async:
+# the registry package is to be replaced by core/async and its API is not
+# stable, and copied scripts kept bringing it back. Every import block in the
+# frontmatter (between the `---` or `----` lines) counts; comments do not.
+registry_async="$(find . \( -name _build -o -name .mooncakes -o -name .git -o -name .jj \) -prune -o -type f -name '*.mbtx' -print0 |
+  xargs -0 -r awk '
+    FNR == 1 { inside = 0; done = 0 }
+    done { next }
+    /^---+[[:space:]]*$/ { if (inside) done = 1; else inside = 1; next }
+    inside {
+      line = $0
+      sub(/\/\/.*/, "", line)
+      if (line ~ /"moonbitlang\/async[@"\/]/) { print FILENAME; done = 1 }
+    }')"
+if [ -n "$registry_async" ]; then
+  echo "use moonbitlang/core/async, not the registry moonbitlang/async (to be replaced by core/async, API not stable):" >&2
+  echo "$registry_async" >&2
+  exit 1
+fi
 # Every enforced limit in RESOURCE_BOUNDS.md names tests that exist.
 run scripts/bounds_check.sh
 run moon update
