@@ -6,9 +6,10 @@ pub async fn Client::get(
   params~ : Array[(String, String)] = [],
   headers~ : Array[(String, String)] = [],
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = self.follow_redirects,
 ) -> Response raise HTTPError {
-  self.request("GET", url, params~, headers~, auth?, follow_redirects~)
+  self.request("GET", url, params~, headers~, auth?, trace?, follow_redirects~)
 }
 
 ///|
@@ -19,9 +20,10 @@ pub async fn Client::head(
   params~ : Array[(String, String)] = [],
   headers~ : Array[(String, String)] = [],
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = self.follow_redirects,
 ) -> Response raise HTTPError {
-  self.request("HEAD", url, params~, headers~, auth?, follow_redirects~)
+  self.request("HEAD", url, params~, headers~, auth?, trace?, follow_redirects~)
 }
 
 ///|
@@ -32,9 +34,18 @@ pub async fn Client::options(
   params~ : Array[(String, String)] = [],
   headers~ : Array[(String, String)] = [],
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = self.follow_redirects,
 ) -> Response raise HTTPError {
-  self.request("OPTIONS", url, params~, headers~, auth?, follow_redirects~)
+  self.request(
+    "OPTIONS",
+    url,
+    params~,
+    headers~,
+    auth?,
+    trace?,
+    follow_redirects~,
+  )
 }
 
 ///|
@@ -45,9 +56,18 @@ pub async fn Client::delete(
   params~ : Array[(String, String)] = [],
   headers~ : Array[(String, String)] = [],
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = self.follow_redirects,
 ) -> Response raise HTTPError {
-  self.request("DELETE", url, params~, headers~, auth?, follow_redirects~)
+  self.request(
+    "DELETE",
+    url,
+    params~,
+    headers~,
+    auth?,
+    trace?,
+    follow_redirects~,
+  )
 }
 
 ///|
@@ -63,6 +83,7 @@ pub async fn Client::post(
   files? : Array[Part],
   json? : Json,
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = self.follow_redirects,
 ) -> Response raise HTTPError {
   self.request(
@@ -76,6 +97,7 @@ pub async fn Client::post(
     files?,
     json?,
     auth?,
+    trace?,
     follow_redirects~,
   )
 }
@@ -93,6 +115,7 @@ pub async fn Client::put(
   files? : Array[Part],
   json? : Json,
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = self.follow_redirects,
 ) -> Response raise HTTPError {
   self.request(
@@ -106,6 +129,7 @@ pub async fn Client::put(
     files?,
     json?,
     auth?,
+    trace?,
     follow_redirects~,
   )
 }
@@ -123,6 +147,7 @@ pub async fn Client::patch(
   files? : Array[Part],
   json? : Json,
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = self.follow_redirects,
 ) -> Response raise HTTPError {
   self.request(
@@ -136,6 +161,7 @@ pub async fn Client::patch(
     files?,
     json?,
     auth?,
+    trace?,
     follow_redirects~,
   )
 }
@@ -148,12 +174,13 @@ pub async fn get(
   params~ : Array[(String, String)] = [],
   headers~ : Array[(String, String)] = [],
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = false,
   timeout~ : Timeout = Timeout::new(Some(default_phase_timeout_ms)),
 ) -> Response raise HTTPError {
   let client = Client::new(timeout~, follow_redirects~)
   defer client.close()
-  client.request("GET", url, params~, headers~, auth?)
+  client.request("GET", url, params~, headers~, auth?, trace?)
 }
 
 ///|
@@ -164,12 +191,13 @@ pub async fn head(
   params~ : Array[(String, String)] = [],
   headers~ : Array[(String, String)] = [],
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = false,
   timeout~ : Timeout = Timeout::new(Some(default_phase_timeout_ms)),
 ) -> Response raise HTTPError {
   let client = Client::new(timeout~, follow_redirects~)
   defer client.close()
-  client.request("HEAD", url, params~, headers~, auth?)
+  client.request("HEAD", url, params~, headers~, auth?, trace?)
 }
 
 ///|
@@ -180,12 +208,13 @@ pub async fn options(
   params~ : Array[(String, String)] = [],
   headers~ : Array[(String, String)] = [],
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = false,
   timeout~ : Timeout = Timeout::new(Some(default_phase_timeout_ms)),
 ) -> Response raise HTTPError {
   let client = Client::new(timeout~, follow_redirects~)
   defer client.close()
-  client.request("OPTIONS", url, params~, headers~, auth?)
+  client.request("OPTIONS", url, params~, headers~, auth?, trace?)
 }
 
 ///|
@@ -196,12 +225,13 @@ pub async fn delete(
   params~ : Array[(String, String)] = [],
   headers~ : Array[(String, String)] = [],
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = false,
   timeout~ : Timeout = Timeout::new(Some(default_phase_timeout_ms)),
 ) -> Response raise HTTPError {
   let client = Client::new(timeout~, follow_redirects~)
   defer client.close()
-  client.request("DELETE", url, params~, headers~, auth?)
+  client.request("DELETE", url, params~, headers~, auth?, trace?)
 }
 
 ///|
@@ -217,6 +247,7 @@ pub async fn post(
   files? : Array[Part],
   json? : Json,
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = false,
   timeout~ : Timeout = Timeout::new(Some(default_phase_timeout_ms)),
 ) -> Response raise HTTPError {
@@ -233,6 +264,7 @@ pub async fn post(
     files?,
     json?,
     auth?,
+    trace?,
   )
 }
 
@@ -249,6 +281,7 @@ pub async fn put(
   files? : Array[Part],
   json? : Json,
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = false,
   timeout~ : Timeout = Timeout::new(Some(default_phase_timeout_ms)),
 ) -> Response raise HTTPError {
@@ -265,6 +298,7 @@ pub async fn put(
     files?,
     json?,
     auth?,
+    trace?,
   )
 }
 
@@ -281,6 +315,7 @@ pub async fn patch(
   files? : Array[Part],
   json? : Json,
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = false,
   timeout~ : Timeout = Timeout::new(Some(default_phase_timeout_ms)),
 ) -> Response raise HTTPError {
@@ -297,6 +332,7 @@ pub async fn patch(
     files?,
     json?,
     auth?,
+    trace?,
   )
 }
 
@@ -314,6 +350,7 @@ pub async fn request(
   files? : Array[Part],
   json? : Json,
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = false,
   timeout~ : Timeout = Timeout::new(Some(default_phase_timeout_ms)),
 ) -> Response raise HTTPError {
@@ -330,6 +367,7 @@ pub async fn request(
     files?,
     json?,
     auth?,
+    trace?,
   )
 }
 
@@ -348,6 +386,7 @@ pub async fn[T] stream(
   files? : Array[Part],
   json? : Json,
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = false,
   timeout~ : Timeout = Timeout::new(Some(default_phase_timeout_ms)),
 ) -> T {
@@ -365,6 +404,7 @@ pub async fn[T] stream(
     files?,
     json?,
     auth?,
+    trace?,
   )
 }
 
@@ -376,3 +416,11 @@ pub using @multipart {type Part}
 ///|
 /// A server-sent event, as `StreamResponse::each_event` passes it.
 pub using @sse {type SseEvent}
+
+///|
+/// A point one attempt reached on the connection, as `trace=` passes it
+/// (httpx2's `trace` extension): `Dialed(addr~)`, `TlsDone`,
+/// `Pooled(reused~)`, `Written` and `FirstByte`, in that order and each at
+/// most once per attempt. The native and wasm network reports them; the JS
+/// host's fetch and a `MockTransport` report none.
+pub using @mttp_core {type PhaseEvent}

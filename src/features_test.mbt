@@ -321,3 +321,54 @@ async test "cookie_jar shares one jar between clients" {
   first.get("https://api.test/set") |> ignore
   assert_eq(second.get("https://api.test/check").text(), "shared=1")
 }
+
+///|
+/// Plays a network backend: reports a dial and the later phases of each
+/// exchange to the request's `on_phase`, and redirects `/old` to `/new`.
+fn phase_app(req : @mttp.Request) -> @mttp.Response {
+  if req.attributes.get(@mttp.on_phase) is Some(report) {
+    report(Dialed(addr="api.test:443"))
+    report(Pooled(reused=false))
+    report(Written)
+    report(FirstByte)
+  }
+  if req.url.has_suffix("/old") {
+    @mttp.Response::new(
+      302,
+      headers=@mttp.Headers::of([("location", "https://api.test/new")]),
+    )
+  } else {
+    @mttp.Response::new(200, body=Bytes(b"ok"))
+  }
+}
+
+///|
+async test "trace sees each attempt's phases, across a redirect" {
+  let c = @requesto.Client::new(
+    transport=@requesto.MockTransport::new(req => phase_app(req)),
+  )
+  defer c.close()
+  let seen : Array[@requesto.PhaseEvent] = []
+  let r = c.get("https://api.test/old", follow_redirects=true, trace=event => {
+    seen.push(event)
+  })
+  assert_eq(r.text(), "ok")
+  let one : Array[@requesto.PhaseEvent] = [
+    Dialed(addr="api.test:443"),
+    Pooled(reused=false),
+    Written,
+    FirstByte,
+  ]
+  assert_eq(seen, [..one, ..one])
+  // A call without trace carries no callback.
+  seen.clear()
+  c.get("https://api.test/new") |> ignore
+  assert_eq(seen.length(), 0)
+  // A streamed call traces the same way.
+  c.stream("GET", "https://api.test/new", trace=event => seen.push(event), async fn(
+    response,
+  ) {
+    assert_eq(response.read(), b"ok")
+  })
+  assert_eq(seen, one)
+}

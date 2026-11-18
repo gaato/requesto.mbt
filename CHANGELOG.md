@@ -7,6 +7,25 @@ never does. Every breaking change is listed with a migration note.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-18
+
+### Added
+
+- **`trace=` on every call**, httpx2's `trace` extension: a function called
+  with each `PhaseEvent` (`Dialed`, `TlsDone`, `Pooled`, `Written`,
+  `FirstByte`) of each attempt, redirects and retries included. The native
+  and wasm network reports them; the JS host's fetch and `MockTransport`
+  report none. `PhaseEvent` is re-exported from `gaato/mttp_core`.
+
+### Changed
+
+- **Requires `gaato/mttp` 0.5.0, `gaato/mttp_core` 0.3.0 and
+  `gaato/mttp_digest` 0.5.0, and MoonBit 0.10.21.** The mttp 0.4.0 that
+  0.3.0 depended on does not build for native or wasm on MoonBit 0.10.21,
+  whose `core/async` IO traits changed. requesto's defaults do not
+  change. mttp's new `CircuitOpen` refusal, from a `CircuitBreaker` passed
+  as `transport=`, arrives as `TransportError`.
+
 ## [0.3.0] - 2026-11-17
 
 ### Changed

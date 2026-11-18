@@ -39,7 +39,7 @@ ledger OK, 1 = an unexplained or over-budget file, 2 = the run itself failed
 - moon's bundled tcc cannot link on some hosts (openSUSE); the script sets
   `MOON_CC=cc` unless it is already set.
 
-Snapshot at the last full measurement (2026-11-17): **97.7 %** (296/303
+Snapshot at the last full measurement (2026-11-18): **97.7 %** (297/304
 lines).
 
 ## Policy
@@ -70,5 +70,5 @@ Budgets are exact uncovered counts at the last measurement.
 | File | Budget | Reason |
 | --- | --- | --- |
 | src/client.mbt | 4 | Three arms for a reply whose body is `Err`, in `Client::send` (two lines) and `Client::stream`: both ask mttp for `any_status()`, which sends every status through `Ok`, and the readers they use cannot fail to decode. One arm of `multipart_boundary` for a platform without a random source; every test target has one. |
-| src/error.mbt | 2 | The `None` arm of `HTTPError`'s `output`, reached only by variants that always carry an mttp error; and the catch-all arm of `from_mttp`, which `Kind`'s `#non_exhaustive` requires and no kind of mttp_core 0.2.0 reaches. |
+| src/error.mbt | 2 | The `None` arm of `HTTPError`'s `output`, reached only by variants that always carry an mttp error; and the catch-all arm of `from_mttp`, which `Kind`'s `#non_exhaustive` requires and only kinds requesto never builds reach (`CircuitOpen`, from a caller-supplied `CircuitBreaker` transport). |
 | src/auth.mbt | 1 | The refusal of Digest on a platform without a random source; every test target has one. |

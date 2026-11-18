@@ -13,23 +13,23 @@ import {
 }
 
 // Values
-pub async fn delete(String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
+pub async fn delete(String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub async fn get(String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
+pub async fn get(String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub async fn head(String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
+pub async fn head(String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub async fn options(String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
+pub async fn options(String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub async fn patch(String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
+pub async fn patch(String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub async fn post(String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
+pub async fn post(String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub async fn put(String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
+pub async fn put(String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub async fn request(String, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
+pub async fn request(String, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool, timeout? : Timeout) -> Response raise HTTPError
 
-pub async fn[T] stream(String, String, async (StreamResponse) -> T, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool, timeout? : Timeout) -> T
+pub async fn[T] stream(String, String, async (StreamResponse) -> T, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool, timeout? : Timeout) -> T
 
 // Errors
 pub(all) suberror HTTPError {
@@ -71,20 +71,20 @@ pub(all) enum Auth {
 pub struct Client {
   // private fields
 }
-pub fn Client::build_request(Self, String, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth) -> @mttp_core.Request raise HTTPError
+pub fn Client::build_request(Self, String, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit) -> @mttp_core.Request raise HTTPError
 pub fn Client::close(Self) -> Unit
-pub async fn Client::delete(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
-pub async fn Client::get(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
-pub async fn Client::head(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn Client::delete(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn Client::get(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn Client::head(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool) -> Response raise HTTPError
 pub fn Client::mttp(Self) -> @client.Client
 pub fn Client::new(base_url? : String, headers? : Array[(String, String)], params? : Array[(String, String)], cookies? : Bool, cookie_jar? : @cookie.CookieJar, auth? : Auth, timeout? : Timeout, follow_redirects? : Bool, max_redirects? : Int32, retry? : @client.RetryPolicy, max_body_bytes? : Int32, total_timeout? : Int32, event_hooks? : EventHooks, limits? : Limits, proxy? : String, trust_env? : Bool, trust? : @trust.Trust, transport? : &@mttp_core.Backend, clock? : &@rt.Clock, timer? : &@rt.Timer) -> Self
-pub async fn Client::options(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
-pub async fn Client::patch(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
-pub async fn Client::post(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
-pub async fn Client::put(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
-pub async fn Client::request(Self, String, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn Client::options(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn Client::patch(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn Client::post(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn Client::put(Self, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool) -> Response raise HTTPError
+pub async fn Client::request(Self, String, String, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool) -> Response raise HTTPError
 pub async fn Client::send(Self, @mttp_core.Request, follow_redirects? : Bool) -> Response raise HTTPError
-pub async fn[T] Client::stream(Self, String, String, async (StreamResponse) -> T, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, follow_redirects? : Bool) -> T
+pub async fn[T] Client::stream(Self, String, String, async (StreamResponse) -> T, params? : Array[(String, String)], headers? : Array[(String, String)], content? : Bytes, text? : String, data? : Array[(String, String)], files? : Array[@multipart.Part], json? : @json.Json, auth? : Auth, trace? : (@mttp_core.PhaseEvent) -> Unit, follow_redirects? : Bool) -> T
 
 pub struct EventHooks {
   request : Array[(@mttp_core.Request) -> Unit raise HTTPError]
@@ -152,6 +152,8 @@ pub fn Timeout::new(Int32?, connect? : Int32?, read? : Int32?, write? : Int32?, 
 
 // Type aliases
 pub using @multipart {type Part}
+
+pub using @mttp_core {type PhaseEvent}
 
 pub using @sse {type SseEvent}
 

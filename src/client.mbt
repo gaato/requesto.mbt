@@ -1,6 +1,6 @@
 ///|
 /// The default `User-Agent`, naming this module's version.
-let user_agent : String = "requesto/0.3.0"
+let user_agent : String = "requesto/0.3.1"
 
 ///|
 /// The default bound on a buffered body, after decompression.
@@ -276,7 +276,9 @@ fn multipart_boundary(clock : &@rt.Clock) -> String {
 /// httpx2's `build_request`: the `@mttp.Request` a call would send, with the
 /// client's base URL, query parameters and auth applied. One body argument
 /// is used, in this order: `content`, `text`, `files` (with `data` as its
-/// text fields), `data` (as a form), `json`.
+/// text fields), `data` (as a form), `json`. `trace` is called with each
+/// `PhaseEvent` of each attempt, redirects and retries included, as httpx2's
+/// `trace` extension is.
 pub fn Client::build_request(
   self : Client,
   verb : String,
@@ -289,6 +291,7 @@ pub fn Client::build_request(
   files? : Array[Part],
   json? : Json,
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
 ) -> @mttp.Request raise HTTPError {
   let full = if self.base_url == "" {
     url
@@ -308,6 +311,9 @@ pub fn Client::build_request(
   match (if auth is Some(_) { auth } else { self.auth }) {
     Some(auth) => req = apply_auth(req, auth)
     None => ()
+  }
+  if trace is Some(trace) {
+    req = { ..req, attributes: req.attributes.put(@mttp_core.on_phase, trace), }
   }
   match (content, text, files, data, json) {
     (Some(b), _, _, _, _) => req = req.body_bytes(b)
@@ -385,6 +391,7 @@ pub async fn Client::request(
   files? : Array[Part],
   json? : Json,
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = self.follow_redirects,
 ) -> Response raise HTTPError {
   let req = self.build_request(
@@ -398,6 +405,7 @@ pub async fn Client::request(
     files?,
     json?,
     auth?,
+    trace?,
   )
   self.send(req, follow_redirects~)
 }
@@ -420,6 +428,7 @@ pub async fn[T] Client::stream(
   files? : Array[Part],
   json? : Json,
   auth? : Auth,
+  trace? : (PhaseEvent) -> Unit,
   follow_redirects~ : Bool = self.follow_redirects,
 ) -> T {
   let req = self.build_request(
@@ -433,6 +442,7 @@ pub async fn[T] Client::stream(
     files?,
     json?,
     auth?,
+    trace?,
   )
   for hook in self.hooks.request {
     hook(req)

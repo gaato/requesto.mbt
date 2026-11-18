@@ -106,6 +106,22 @@ pub async fn follow(client : @requesto.Client) -> Unit {
 A line longer than 1 MiB or an event longer than 16 MiB raises `TooLarge`
 (`max_line_bytes=`, `max_event_bytes=` change it).
 
+### Tracing
+
+`trace=` on a call, httpx2's `trace` extension, is called with each point
+an attempt reaches on the connection: `Dialed(addr~)`, `TlsDone`,
+`Pooled(reused~)`, `Written` and `FirstByte`, for every attempt, redirects
+included. The native and wasm network reports them; the JS host's fetch
+reports none.
+
+```mbt check
+///|
+pub async fn timed(client : @requesto.Client) -> Unit raise @requesto.HTTPError {
+  client.get("status", trace=event => println(@debug.to_string(event)))
+  |> ignore
+}
+```
+
 ### Testing without a network
 
 `MockTransport::new` takes a handler of the same type an mttp server serves,
@@ -145,6 +161,7 @@ async test "the app answers" {
 | `verify=False`, `verify="ca.pem"` | `trust=Insecure`, `trust=PemFile("ca.pem")` |
 | `Timeout(10.0, connect=5.0)` | `Timeout::new(Some(10_000), connect=Some(5_000))` (milliseconds) |
 | `event_hooks={"request": [...], "response": [...]}` | `event_hooks=EventHooks::new(request=[...], response=[...])` |
+| `extensions={"trace": log}` | `trace=event => ...` |
 | `MockTransport(handler)` | `MockTransport::new(handler)` |
 | `except httpx2.HTTPError` | `catch { e => ... }` on `HTTPError` |
 
