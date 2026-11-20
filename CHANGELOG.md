@@ -7,6 +7,12 @@ never does. Every breaking change is listed with a migration note.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The README's Install adds `gaato/mttp`**, which the examples use, and says
+  that only a package importing `moonbitlang/core/async` itself needs its
+  experimental opt-in.
+
 ## [0.3.1] - 2026-11-18
 
 ### Added

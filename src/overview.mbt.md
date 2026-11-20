@@ -18,12 +18,16 @@ The name is "request" as Japanese speakers tend to say it: リクエスト,
 
 ```sh
 moon add gaato/requesto
+moon add gaato/mttp
 ```
 
-requesto runs on `moonbitlang/core/async`, which is experimental: a package
-that imports it needs
+An app adds both: it starts the event loop with `@mttp.run`, and the types
+requesto takes and returns, such as `@mttp.Request` and `@mttp.Response`, are
+mttp's. requesto runs on `moonbitlang/core/async`, which is experimental; a
+package that imports `moonbitlang/core/async` itself, to spawn tasks or for
+`async test`, lists it in
 `options("allow-experimental-packages": ["moonbitlang/core/async"])` in its
-`moon.pkg`. Start the event loop with `@mttp.run` or an `async fn main`.
+`moon.pkg`.
 
 ## Usage
 
