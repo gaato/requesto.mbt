@@ -1,18 +1,23 @@
 # gaato/requesto
 
-HTTP calls for MoonBit written the way httpx2 (and requests) users write
-them: verb functions, a client with defaults, responses as values,
+HTTP calls for MoonBit written the way httpx2 and requests users write them:
+verb functions, a client with defaults, responses as values,
 `raise_for_status()`, streaming in a scope, event hooks and a mock transport.
-Underneath it is [gaato/mttp](https://mooncakes.io/docs/gaato/mttp), which
-does the HTTP; requesto only adds the surface and its defaults.
+Underneath is [gaato/mttp](https://mooncakes.io/docs/gaato/mttp), which does
+the HTTP. requesto adds only the surface and httpx2's defaults.
+
+Choose requesto if you know httpx2 or requests and want names you can guess.
+Choose mttp directly if you want its defaults instead (retries, deadlines and
+followed redirects on by default), typed endpoints or a server.
 
 The name is "request" as Japanese speakers tend to say it: リクエスト,
 *rikuesuto*.
 
-> **Status**: unofficial and experimental. While the version is 0.x, a minor
-> release may contain breaking changes; the
-> [changelog](https://github.com/gaato/requesto.mbt/blob/main/CHANGELOG.md)
-> lists each one with a migration note.
+A minor release can change the API; the
+[changelog](https://github.com/gaato/requesto.mbt/blob/main/CHANGELOG.md)
+lists each change with a migration note.
+
+[日本語](https://github.com/gaato/requesto.mbt/blob/main/README.ja.md)
 
 ## Install
 
@@ -23,9 +28,9 @@ moon add gaato/mttp
 
 An app adds both: it starts the event loop with `@mttp.run`, and the types
 requesto takes and returns, such as `@mttp.Request` and `@mttp.Response`, are
-mttp's. requesto runs on `moonbitlang/core/async`, which is experimental; a
-package that imports `moonbitlang/core/async` itself, to spawn tasks or for
-`async test`, lists it in
+mttp's. requesto runs on `moonbitlang/core/async`, which MoonBit marks as
+experimental. A package that imports `moonbitlang/core/async` itself, to spawn
+tasks or for `async test`, lists it in
 `options("allow-experimental-packages": ["moonbitlang/core/async"])` in its
 `moon.pkg`.
 
@@ -52,16 +57,23 @@ pub async fn example() -> Unit raise @requesto.HTTPError {
     .raise_for_status()
     .json_as()
   println("user \{user.id}: \{user.name}")
-  client.post("users", json={ "name": user.name }) |> ignore
+  client.patch("users/42", json={ "name": user.name + " (renamed)" })
+  .raise_for_status()
+  |> ignore
 }
 ```
 
+Every HTTP method is there, both as a module function (`@requesto.get(url)`)
+and on a `Client`: `get`, `post`, `put`, `patch`, `delete`, `head` and
+`options`, plus `request(method, url)` for any other. Methods with a body take
+the same `content=`, `text=`, `data=`, `json=` and `files=` arguments.
+
 A response is a value whatever its status. `raise_for_status()` raises
 `HTTPStatusError` for anything outside 200–299 and otherwise returns the
-response, so calls chain. Every failure is an `HTTPError`; its variants are
+response, so calls chain. Every failure is an `HTTPError`. Its variants carry
 httpx2's exception names (`ConnectTimeout`, `ReadTimeout`, `ConnectError`,
-`TooManyRedirects`, `HTTPStatusError`, …), with `is_timeout()` and
-`is_transport_error()` in place of the class tree, and `mttp()` returns the
+`TooManyRedirects`, `HTTPStatusError`, …). `is_timeout()` and
+`is_transport_error()` stand in for the class tree, and `mttp()` returns the
 `@mttp.TransportError` underneath.
 
 ### Bodies and auth
@@ -94,8 +106,8 @@ pub async fn upload(
 
 `client.stream` passes a response whose body is still on the connection to a
 function, and closes it when the function returns. Read it whole with
-`read()`, or piece by piece with `each_bytes`, `each_line` or, for
-server-sent events, `each_event`:
+`read()`, or piece by piece with `each_bytes` (a download), `each_line` (a
+text feed) or `each_event` (server-sent events):
 
 ```mbt check
 ///|
@@ -108,23 +120,7 @@ pub async fn follow(client : @requesto.Client) -> Unit {
 ```
 
 A line longer than 1 MiB or an event longer than 16 MiB raises `TooLarge`
-(`max_line_bytes=`, `max_event_bytes=` change it).
-
-### Tracing
-
-`trace=` on a call, httpx2's `trace` extension, is called with each point
-an attempt reaches on the connection: `Dialed(addr~)`, `TlsDone`,
-`Pooled(reused~)`, `Written` and `FirstByte`, for every attempt, redirects
-included. The native and wasm network reports them; the JS host's fetch
-reports none.
-
-```mbt check
-///|
-pub async fn timed(client : @requesto.Client) -> Unit raise @requesto.HTTPError {
-  client.get("status", trace=event => println(@debug.to_string(event)))
-  |> ignore
-}
-```
+(`max_line_bytes=` and `max_event_bytes=` change the limits).
 
 ### Testing without a network
 
@@ -147,12 +143,51 @@ async test "the app answers" {
 }
 ```
 
+### Tracing
+
+`trace=` on a call, httpx2's `trace` extension, is called with each point an
+attempt reaches on the connection: `Dialed(addr~)`, `TlsDone`,
+`Pooled(reused~)`, `Written` and `FirstByte`, for every attempt, redirects
+included. The native and wasm network reports them. The JS host's `fetch`
+reports none.
+
+```mbt check
+///|
+pub async fn timed(client : @requesto.Client) -> Unit raise @requesto.HTTPError {
+  client.get("status", trace=event => println(@debug.to_string(event)))
+  |> ignore
+}
+```
+
+## Defaults
+
+The same as httpx2's:
+
+| Setting | Default |
+| --- | --- |
+| Redirects | Not followed. `follow_redirects=true` on the client or one call follows up to 20. |
+| Retries | None. `retry=` takes an `@mttp.RetryPolicy`. |
+| Timeouts | 5 s each for connect, read, write and pool. No deadline for the whole call unless `total_timeout=` sets one. |
+| Pool | Up to 100 connections, 20 kept idle for 5 s. |
+| Cookies | Kept in a jar of the client's own. `cookie_jar=` shares one. |
+| Proxies | From `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`. `trust_env=false` ignores them. |
+
+One difference from httpx2: a buffered body is limited to 64 MiB after
+decompression (`max_body_bytes=`), and a larger one fails with `TooLarge`
+instead of filling memory. Read larger bodies with `stream`.
+
+Text is decoded as UTF-8, with malformed sequences replaced by U+FFFD. Read
+`content` for other encodings. Raw `content=` bytes are sent without a
+`Content-Type`, as in httpx2. On JavaScript, the host's `fetch` handles
+connections, proxies and TLS itself.
+
 ## Coming from httpx2
 
 | httpx2 | requesto |
 |---|---|
 | `httpx2.get(url, params=..., headers=...)` | `@requesto.get(url, params=[...], headers=[...])` |
 | `httpx2.Client(base_url=..., auth=...)` | `@requesto.Client::new(base_url=..., auth=Bearer(...))` |
+| `client.patch(url, json=...)` | `client.patch(url, json=...)` |
 | `content=b"..."` / `content="..."` | `content=b"..."` / `text="..."` |
 | `r.status_code`, `r.text`, `r.json()` | `r.status_code`, `r.text()`, `r.json()`, or `r.json_as()` into a type |
 | `with client.stream(...) as r:` | `client.stream(..., async fn(r) { ... })` |
@@ -169,35 +204,17 @@ async test "the app answers" {
 | `MockTransport(handler)` | `MockTransport::new(handler)` |
 | `except httpx2.HTTPError` | `catch { e => ... }` on `HTTPError` |
 
-`HTTPError` and `status_code` keep httpx2's spelling rather than MoonBit's
+`HTTPError` and `status_code` keep httpx2's spelling, rather than MoonBit's
 usual `HttpError` and mttp's `status`, so names can be guessed from httpx2.
-
-## Defaults
-
-The same as httpx2's: redirects are not followed (`follow_redirects=true` on
-the client or one call follows up to 20), nothing is retried (`retry=` takes
-an `@mttp.RetryPolicy`), each phase — connect, read, write, pool — has 5 s,
-the pool holds up to 100 connections and keeps 20 idle for 5 s, the client
-keeps cookies in a jar of its own (`cookie_jar=` shares one), proxies come
-from `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`, and there is no deadline for
-the whole call (`total_timeout=` sets one). On JavaScript the host's `fetch` handles connections, proxies and
-TLS itself.
-
-One difference: a buffered body is limited to 64 MiB after decompression
-(`max_body_bytes=`), and a larger one fails with `TooLarge` instead of
-filling memory. Read larger bodies with `stream`.
-
-Text is decoded as UTF-8, with malformed sequences replaced by U+FFFD; read
-`content` for other encodings. Raw `content=` bytes are sent without a
-`Content-Type`, as in httpx2.
 
 ## Using mttp alongside
 
 Types that need no sugar are mttp's own: `@mttp.Request`, `@mttp.Response`,
 `@mttp.Headers`, `@mttp.RetryPolicy`, `&@mttp.Backend`. `client.mttp()`
 returns the mttp client underneath, and `build_request` gives the
-`@mttp.Request` a call would send. Typed endpoints, routers, OpenAPI and
-servers are mttp's; use it directly for those.
+`@mttp.Request` a call would send. For a server, typed endpoints, routers or
+OpenAPI, use mttp and
+[gaato/mttp_core](https://mooncakes.io/docs/gaato/mttp_core) directly.
 
 ## License
 
