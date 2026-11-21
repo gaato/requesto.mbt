@@ -20,10 +20,10 @@ if [ "$first_heading" != "## [Unreleased]" ]; then
   echo "CHANGELOG.md: the first section must be [Unreleased], found: $first_heading" >&2
   exit 1
 fi
-# The default User-Agent names the version in moon.mod.
+# The version the User-Agent names is the one in moon.mod.
 version="$(sed -nE 's/^version = "(.*)"$/\1/p' moon.mod)"
-grep -Fq "let user_agent : String = \"requesto/$version\"" src/client.mbt || {
-  echo "src/client.mbt: user_agent does not name version $version from moon.mod" >&2
+grep -Fq "let version : String = \"$version\"" src/client.mbt || {
+  echo "src/client.mbt: version does not equal $version from moon.mod" >&2
   exit 1
 }
 # Scripts import moonbitlang/core/async, not the registry moonbitlang/async:

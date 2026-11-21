@@ -1,6 +1,10 @@
 ///|
+/// This module's version: the one in moon.mod, which scripts/gates.sh checks.
+let version : String = "0.3.2"
+
+///|
 /// The default `User-Agent`, naming this module's version.
-let user_agent : String = "requesto/0.3.1"
+let user_agent : String = "requesto/\{version}"
 
 ///|
 /// The default bound on a buffered body, after decompression.

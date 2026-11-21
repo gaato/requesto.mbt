@@ -3,7 +3,7 @@
 
 name = "gaato/requesto"
 
-version = "0.3.1"
+version = "0.3.2"
 
 license = "Apache-2.0"
 
@@ -20,7 +20,7 @@ source = "src"
 preferred_target = "native"
 
 import {
-  "gaato/mttp@0.5.0",
-  "gaato/mttp_core@0.3.0",
-  "gaato/mttp_digest@0.5.0",
+  "gaato/mttp@0.5.1",
+  "gaato/mttp_core@0.3.2",
+  "gaato/mttp_digest@0.5.1",
 }

@@ -7,6 +7,13 @@ never does. Every breaking change is listed with a migration note.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-21
+
+### Changed
+
+- **Depends on gaato/mttp 0.5.1, gaato/mttp_core 0.3.2 and gaato/mttp_digest 0.5.1**, whose decompression is faster with the same bytes out.
+- **The README is rewritten**: a complete example, bodies and auth, streaming, testing against an app, tracing, the defaults beside httpx2's, and a table for moving from httpx2; a Japanese translation is in README.ja.md.
+
 ### Fixed
 
 - **The README's Install adds `gaato/mttp`**, which the examples use, and says
