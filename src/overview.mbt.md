@@ -57,7 +57,8 @@ pub async fn example() -> Unit raise @requesto.HTTPError {
     .raise_for_status()
     .json_as()
   println("user \{user.id}: \{user.name}")
-  client.patch("users/42", json={ "name": user.name + " (renamed)" })
+  client
+  .patch("users/42", json={ "name": user.name + " (renamed)" })
   .raise_for_status()
   |> ignore
 }
